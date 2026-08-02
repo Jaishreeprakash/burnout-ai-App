@@ -1,0 +1,23 @@
+name: "Keep Live Backend Warm"
+
+# Render's free tier spins the web service down after a period of
+# inactivity, so a request arriving after any real gap pays a cold-start
+# penalty (confirmed repeatedly: 30s+ just for /health to respond). That
+# penalty is what makes the Website E2E Selenium suite intermittently
+# fail against the live deployment even when the app itself is fine. A
+# periodic ping keeps the service from ever going idle long enough to
+# spin down in the first place -- a real fix for a real infrastructure
+# characteristic, not a workaround inside the test suite.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping live backend health endpoint
+        run: |
+          curl -sf --max-time 60 https://burnout-backend-l438.onrender.com/health || \
+            echo "::warning::Backend did not respond within 60s -- may be cold-starting or down."

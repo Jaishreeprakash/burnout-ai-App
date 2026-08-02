@@ -1,0 +1,219 @@
+name: "HealthSense Unified E2E & Security Test Verification"
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+env:
+  LIVE_BACKEND_URL: https://burnout-backend-l438.onrender.com/api/v1
+  PAGES_URL: https://jaishreeprakash.github.io/burnout-ai/
+
+jobs:
+  verify-deployment:
+    name: "Verify Deployment"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Verify Environment & Config
+        run: |
+          echo "Verifying backend configuration and dependencies..."
+          python --version
+          test -f backend/main.py
+          test -f web/package.json
+          test -f mobile/android/gradlew
+          echo "Deployment Verification Successful!"
+
+  backend-api-tests:
+    name: "Run Backend API Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Backend + Test Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install httpx jose python-jose openpyxl
+
+      - name: Run Backend & Security Suite (400 test cases)
+        run: |
+          python scripts/run_backend_suite.py
+
+      - name: Upload Backend & Security Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-security-results
+          path: reports/backend_security_results.*
+
+  frontend-build:
+    name: "Run Frontend Build"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Web Dependencies
+        run: |
+          cd web
+          npm ci
+
+      - name: Build Web App
+        env:
+          VITE_API_URL: ${{ env.LIVE_BACKEND_URL }}
+        run: |
+          cd web
+          npm run build
+          cp dist/index.html dist/404.html
+
+      - name: Upload Web Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist-build
+          path: web/dist
+
+  api-load-tests:
+    name: "Run API Load Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install httpx
+
+      - name: Run API Load Test (100 VUs / 7000+ Requests)
+        run: |
+          WORKERS=$(nproc)
+          python scripts/run_load_test.py --vus 100 --duration 60 --workers "$WORKERS"
+
+      - name: Upload API Load Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-load-test-results
+          path: reports/api_load_test_results.*
+
+  selenium-e2e-tests:
+    name: "Run Selenium E2E Tests"
+    needs: [verify-deployment]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Web Dependencies
+        run: |
+          cd web
+          npm ci
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Backend + Test Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install selenium httpx jose python-jose
+
+      - name: Run Selenium E2E Suite (400 test cases)
+        run: |
+          python scripts/run_selenium_suite.py
+
+      - name: Upload Website E2E Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-e2e-results
+          path: reports/web_e2e_results.*
+
+  consolidate-and-verify-reports:
+    name: "Consolidate & Verify Reports"
+    needs: [verify-deployment, backend-api-tests, frontend-build, api-load-tests, selenium-e2e-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Report Generator Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Download All Suite Reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+          pattern: '*-results'
+          merge-multiple: true
+
+      - name: Generate Unified Test Verification Dashboard
+        run: |
+          python scripts/generate_unified_report.py reports
+
+      - name: Generate Excel Report
+        run: |
+          python scripts/generate_excel_reports.py reports reports/Automation_Test_Report.xlsx
+
+      - name: Generate Executive Summary
+        run: |
+          python scripts/generate_executive_summary.py reports reports/executive-summary.md
+
+      - name: Publish GitHub Actions Summary
+        if: always()
+        run: |
+          python scripts/generate_github_summary.py reports "${{ env.PAGES_URL }}" \
+            "${{ github.run_number }}" "${{ github.sha }}" "${{ github.ref_name }}" \
+            >> "$GITHUB_STEP_SUMMARY"

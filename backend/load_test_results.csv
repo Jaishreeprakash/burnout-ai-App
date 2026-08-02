@@ -1,0 +1,19 @@
+metric,value
+test_type,"Baseline/Load Test (real, non-mocked)"
+target_base_url,http://127.0.0.1:8000
+virtual_users,100
+duration_seconds_requested,60
+duration_seconds_actual,62.501
+start_time_utc,2026-07-19T17:58:36.118370+00:00
+end_time_utc,2026-07-19T17:59:38.619316+00:00
+total_requests,244
+successful_requests,48
+failed_requests,196
+error_rate_percent,80.328
+requests_per_second,3.9
+avg_response_time_ms,24986.14
+min_response_time_ms,67.34
+max_response_time_ms,31155.86
+p50_response_time_ms,30158.18
+p95_response_time_ms,30962.87
+p99_response_time_ms,31111.83

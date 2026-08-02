@@ -1,0 +1,73 @@
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+pip-log.txt
+
+# ── Database files (never commit local SQLite) ───────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# ── Secrets / Environment ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Node / React Native / Expo ───────────────────────────────────────────────
+node_modules/
+.expo/
+.expo-shared/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+dist/
+
+# ── Android ──────────────────────────────────────────────────────────────────
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/app/release/
+mobile/android/app/burnout-upload-key
+mobile/android/build/
+mobile/android/local.properties
+mobile/android/*.keystore
+mobile/android/app/*.keystore
+*.apk
+*.aab
+
+# ── IDE / OS ─────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ── Generated per-suite test result data (regenerated fresh each CI run) ─────
+reports/*_results.json
+reports/*_results.csv
+reports/*.xlsx
+reports/semgrep-results.json
+reports/trivy-results.json
+reports/gitleaks-report.json
+reports/executive-summary.md
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

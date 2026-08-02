@@ -1,0 +1,47 @@
+{
+  "expo": {
+    "name": "BurnoutAI",
+    "slug": "burnout-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "burnoutai",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
+    "plugins": [
+      "expo-camera",
+      "expo-av",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#6366f1"
+        }
+      ]
+    ],
+    "autolinking": {
+      "exclude": ["expo-fetch"]
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f172a"
+      },
+      "package": "com.burnoutai.mobile"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.burnoutai.mobile"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "apiUrl": "https://burnout-backend-l438.onrender.com/api/v1"
+    }
+  }
+}

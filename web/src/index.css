@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-slate-900 text-slate-100 font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-800;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-500;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-slate-800/60 backdrop-blur-sm border border-slate-700/50;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent;
+  }
+
+  .metric-card {
+    @apply bg-slate-800 border border-slate-700 rounded-xl p-4 hover:border-indigo-500/50 transition-all duration-200;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all duration-150 cursor-pointer text-sm font-medium;
+  }
+
+  .nav-item.active {
+    @apply text-white bg-indigo-600/20 border border-indigo-500/30 text-indigo-400;
+  }
+
+  .btn-primary {
+    @apply bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-lg transition-all duration-150 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-slate-700 hover:bg-slate-600 text-slate-200 font-medium px-4 py-2 rounded-lg transition-all duration-150 flex items-center gap-2;
+  }
+
+  .input-field {
+    @apply bg-slate-800 border border-slate-600 rounded-lg px-4 py-2.5 text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all duration-150 w-full;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-white;
+  }
+
+  .section-subtitle {
+    @apply text-sm text-slate-400;
+  }
+}
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .glow-indigo {
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+  }
+
+  .glow-red {
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  }
+}
+
+/* Recharts custom styles */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: #1e293b !important;
+  border: 1px solid #334155 !important;
+  border-radius: 8px !important;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: #334155 !important;
+}
+
+/* Animation classes */
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes gaugeSweep {
+  from { stroke-dashoffset: 283; }
+  to { stroke-dashoffset: var(--target-offset); }
+}
+
+.gauge-arc {
+  animation: gaugeSweep 1.5s ease-out forwards;
+}

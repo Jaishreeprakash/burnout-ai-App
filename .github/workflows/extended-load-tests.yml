@@ -1,0 +1,172 @@
+name: "Extended Load Tests (Stress / Spike / Endurance)"
+
+# Kept separate from unified_reports.yml deliberately: these are slow (the
+# endurance test alone runs for 30 real minutes) and only meaningful as an
+# occasional deep-dive, not a signal on every push. Manual trigger or a
+# weekly schedule only — never on push/PR.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 1'  # Monday 03:00 UTC
+
+jobs:
+  stress-test:
+    name: Stress Test (200 / 500 / 1000 VUs)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install httpx
+
+      - name: Run Real Stress Test
+        run: |
+          WORKERS=$(nproc)
+          python scripts/run_load_test.py --mode stress --workers "$WORKERS"
+
+      - name: Upload Stress Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stress-test-results
+          path: reports/api_stress_test_results.json
+
+  spike-test:
+    name: Spike Test (50 -> 500 VUs)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install httpx
+
+      - name: Run Real Spike Test
+        run: |
+          WORKERS=$(nproc)
+          python scripts/run_load_test.py --mode spike --workers "$WORKERS"
+
+      - name: Upload Spike Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spike-test-results
+          path: reports/api_spike_test_results.json
+
+  endurance-test:
+    name: Endurance Test (100 VU / 30 min)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install httpx
+
+      - name: Run Real Endurance Test
+        run: |
+          WORKERS=$(nproc)
+          python scripts/run_load_test.py --mode endurance --vus 100 --duration 1800 --workers "$WORKERS"
+
+      - name: Upload Endurance Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: endurance-test-results
+          path: reports/api_endurance_test_results.json
+
+  summary:
+    name: Extended Load Test Summary
+    needs: [stress-test, spike-test, endurance-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Download All Extended Load Test Reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+          pattern: '*-test-results'
+          merge-multiple: true
+
+      - name: Publish GitHub Actions Summary
+        run: |
+          python - <<'PYEOF'
+          import json, os
+
+          def load(name):
+              p = f"reports/{name}"
+              return json.load(open(p, encoding="utf-8")) if os.path.exists(p) else None
+
+          stress = load("api_stress_test_results.json")
+          spike = load("api_spike_test_results.json")
+          endurance = load("api_endurance_test_results.json")
+
+          lines = ["# Extended Load Test Summary\n"]
+
+          if stress:
+              lines.append("## Stress Test\n")
+              lines.append(f"Failure point: **{stress['failure_point_vus'] or 'not reached'}** VUs\n")
+              lines.append("| VUs | RPS | Avg (ms) | Error Rate |")
+              lines.append("| :-- | :-- | :-- | :-- |")
+              for p in stress["phases"]:
+                  lines.append(f"| {p['virtual_users']} | {p['requests_per_second']} | {p['avg_response_time_ms']} | {p['error_rate_percent']}% |")
+              lines.append("")
+
+          if spike:
+              lines.append("## Spike Test\n")
+              lines.append(f"Recovered cleanly: **{spike['recovered_cleanly']}**\n")
+              lines.append("| Phase | RPS | Avg (ms) | Error Rate |")
+              lines.append("| :-- | :-- | :-- | :-- |")
+              for label in ("baseline", "spike", "recovery"):
+                  s = spike[label]
+                  lines.append(f"| {label} | {s['requests_per_second']} | {s['avg_response_time_ms']} | {s['error_rate_percent']}% |")
+              lines.append("")
+
+          if endurance:
+              lines.append("## Endurance Test\n")
+              lines.append(f"Degradation detected: **{endurance['degradation_detected']}**\n")
+              lines.append(f"Overall: {endurance['requests_per_second']} req/sec, "
+                            f"avg {endurance['avg_response_time_ms']}ms, "
+                            f"{endurance['error_rate_percent']}% errors over {endurance['actual_duration_seconds']}s\n")
+
+          summary_text = "\n".join(lines)
+          github_summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if github_summary:
+              with open(github_summary, "a", encoding="utf-8") as f:
+                  f.write(summary_text + "\n")
+          print(summary_text)
+          PYEOF

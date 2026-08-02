@@ -1,0 +1,23 @@
+services:
+  # FastAPI Backend API
+  - type: web
+    name: burnout-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false # Set manually in Render dashboard (contains DB credentials)
+      - key: DB_PASSWORD
+        sync: false # Set manually in Render dashboard -- rotate in Supabase first
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 60
+      - key: OPENAI_API_KEY
+        sync: false # Set manually in Render dashboard
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
