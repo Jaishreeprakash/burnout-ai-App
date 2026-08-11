@@ -89,7 +89,7 @@ def perform_call(client, base_url, scenario, valid_token, secret, algorithm, see
     # ---- Method override for boundary checks ----
     call_method = method
     if name == "unsupported_method":
-        call_method = "PUT"
+        call_method = "DELETE" if method != "DELETE" else "PATCH"
     elif name == "cors_preflight":
         call_method = "OPTIONS"
         headers["Origin"] = "http://localhost:3000"
