@@ -17,13 +17,14 @@ const WellnessRing: React.FC<WellnessRingProps> = ({
   size = 90,
   showLabel = true,
 }) => {
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const animatedProgress = useRef(new Animated.Value(0)).current;
-  const strokeWidth = size * 0.1;
+  const strokeWidth = size * 0.11;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const color = getScoreColor(score, colors);
+  const isLight = scheme === 'light';
 
   useEffect(() => {
     Animated.timing(animatedProgress, {
@@ -33,7 +34,7 @@ const WellnessRing: React.FC<WellnessRingProps> = ({
     }).start();
   }, [score]);
 
-  const strokeDashoffset = circumference - (score / 100) * circumference;
+  const strokeDashoffset = circumference - (Math.min(100, Math.max(0, score)) / 100) * circumference;
 
   return (
     <View style={[styles.container, { width: size }]}>
@@ -41,24 +42,34 @@ const WellnessRing: React.FC<WellnessRingProps> = ({
         <Defs>
           <SvgGradient id={`ringGrad_${score}`} x1="0" y1="0" x2="1" y2="1">
             <Stop offset="0" stopColor={color} stopOpacity="1" />
-            <Stop offset="1" stopColor={color} stopOpacity="0.6" />
+            <Stop offset="1" stopColor={colors.primaryLight} stopOpacity="0.8" />
           </SvgGradient>
         </Defs>
+        {/* Outer track channel shadow */}
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          stroke={isLight ? '#E4E9F2' : '#141720'}
+          strokeWidth={strokeWidth + 3}
+          fill="none"
+        />
         {/* Background circle */}
         <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={colors.surfaceLight}
+          stroke={isLight ? '#CBD5E1' : '#282D3C'}
           strokeWidth={strokeWidth}
           fill="none"
+          opacity={0.5}
         />
         {/* Progress circle */}
         <Circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={color}
+          stroke={`url(#ringGrad_${score})`}
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={`${circumference} ${circumference}`}
@@ -68,7 +79,7 @@ const WellnessRing: React.FC<WellnessRingProps> = ({
         />
       </Svg>
       <View style={[StyleSheet.absoluteFillObject, styles.centerContent]}>
-        <Text style={[styles.scoreText, { color, fontSize: size * 0.22 }]}>{score}</Text>
+        <Text style={[styles.scoreText, { color, fontSize: size * 0.23 }]}>{score}</Text>
         {showLabel && <Text style={[styles.labelText, { fontSize: size * 0.11 }]}>%</Text>}
       </View>
       {showLabel && <Text style={[styles.ringLabel, { color }]}>{label}</Text>}
@@ -87,7 +98,6 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scoreText: {
     fontWeight: '800',
     color: colors.text,
-    lineHeight: undefined,
   },
   labelText: {
     color: colors.textMuted,

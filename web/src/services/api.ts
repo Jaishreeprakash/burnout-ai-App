@@ -17,11 +17,12 @@ import {
   Recommendation,
 } from '../types';
 
-// VITE_API_URL lets a deployed build (e.g. GitHub Pages, which can't host
-// this app's own FastAPI backend) point at a real external backend instead
-// of assuming one is running on the same host at :8000. Local dev is
-// unaffected since the env var isn't set there.
-const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000/api/v1`;
+// Prefer an explicit env override when provided. Otherwise try the local backend
+// during development, but fall back to the public deployed API when localhost is
+// unavailable or the app is running in a browser context that can't reach the
+// local FastAPI server directly.
+const DEFAULT_API_BASE_URL = 'https://burnout-backend-l438.onrender.com/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL;
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -58,11 +59,11 @@ apiClient.interceptors.response.use(
 // ============ AUTH ============
 export const authAPI = {
   login: async (credentials: LoginCredentials): Promise<Token> => {
-    const formData = new FormData();
+    const formData = new URLSearchParams();
     formData.append('username', credentials.username);
     formData.append('password', credentials.password);
-    const res = await apiClient.post<Token>('/auth/login', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    const res = await apiClient.post<Token>('/auth/login', formData.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
     return res.data;
   },
@@ -74,6 +75,11 @@ export const authAPI = {
 
   getMe: async (): Promise<User> => {
     const res = await apiClient.get<User>('/auth/me');
+    return res.data;
+  },
+
+  updateMe: async (data: Partial<User>): Promise<User> => {
+    const res = await apiClient.put<User>('/auth/me', data);
     return res.data;
   },
 };

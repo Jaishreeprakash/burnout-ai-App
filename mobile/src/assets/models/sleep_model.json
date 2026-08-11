@@ -1,0 +1,43 @@
+{
+  "features": [
+    "bedtime_hour",
+    "wake_time_hour",
+    "duration_hours",
+    "interruptions",
+    "prev_screen_time",
+    "prev_late_night",
+    "prev_exercise",
+    "prev_stress"
+  ],
+  "quality_model": {
+    "coefficients": [
+      0.101,
+      0.4776,
+      0.5533,
+      -4.982,
+      -1.699,
+      -9.0309,
+      0.0902,
+      -2.3579
+    ],
+    "intercept": 57.2408
+  },
+  "fatigue_model": {
+    "coefficients": [
+      -0.017,
+      -0.4361,
+      -0.2727,
+      6.1422,
+      1.1049,
+      5.6392,
+      -0.0582,
+      1.3537
+    ],
+    "intercept": 62.7566
+  },
+  "circadian_classes": [
+    "Low",
+    "Moderate",
+    "High"
+  ]
+}

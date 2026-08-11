@@ -1,0 +1,38 @@
+{
+  "features": [
+    "emotion_code",
+    "self_stress",
+    "valence",
+    "arousal",
+    "time_of_day"
+  ],
+  "stability_model": {
+    "coefficients": [
+      -0.1428,
+      -3.8265,
+      18.0586,
+      -12.1686,
+      -0.0524
+    ],
+    "intercept": 80.1448
+  },
+  "emotion_map": {
+    "0": "Happy",
+    "1": "Sad",
+    "2": "Angry",
+    "3": "Neutral",
+    "4": "Surprised",
+    "5": "Anxious"
+  },
+  "stress_categories": [
+    "Calm",
+    "Mild_Stress",
+    "High_Anxiety",
+    "Burnout_Distress"
+  ],
+  "urgency_levels": [
+    "None",
+    "Low",
+    "Immediate_Breathing_Required"
+  ]
+}

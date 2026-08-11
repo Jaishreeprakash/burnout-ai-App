@@ -1,74 +1,79 @@
 export const DarkColors = {
-  background: '#0f172a',
-  surface: '#1e293b',
-  surfaceLight: '#334155',
-  primary: '#6366f1',
-  primaryLight: '#818cf8',
-  primaryDark: '#4f46e5',
-  success: '#22c55e',
-  warning: '#f59e0b',
-  danger: '#ef4444',
-  info: '#3b82f6',
-  text: '#f1f5f9',
+  background: '#161922',
+  surface: '#1D212C',
+  surfaceLight: '#282D3C',
+  surfacePressed: '#141720',
+  shadowLight: '#262B3A',
+  shadowDark: '#101218',
+  primary: '#818cf8',
+  primaryLight: '#a5b4fc',
+  primaryDark: '#6366f1',
+  success: '#34d399',
+  warning: '#fbbf24',
+  danger: '#f87171',
+  info: '#60a5fa',
+  text: '#f8fafc',
   textMuted: '#94a3b8',
   textDim: '#64748b',
-  border: '#334155',
-  borderLight: '#475569',
+  border: '#282d3c',
+  borderLight: '#333a4d',
   // Risk levels
-  low: '#22c55e',
-  moderate: '#f59e0b',
+  low: '#34d399',
+  moderate: '#fbbf24',
   high: '#f97316',
-  critical: '#ef4444',
+  critical: '#f87171',
   // Gradients
-  gradientStart: '#6366f1',
-  gradientEnd: '#8b5cf6',
+  gradientStart: '#818cf8',
+  gradientEnd: '#c084fc',
   // Chart colors
-  chart1: '#6366f1',
-  chart2: '#22c55e',
-  chart3: '#f59e0b',
-  chart4: '#3b82f6',
-  chart5: '#ec4899',
+  chart1: '#818cf8',
+  chart2: '#34d399',
+  chart3: '#fbbf24',
+  chart4: '#60a5fa',
+  chart5: '#f472b6',
 };
 
 export const LightColors = {
-  background: '#f8fafc',
-  surface: '#ffffff',
-  surfaceLight: '#e2e8f0',
-  primary: '#6366f1',
-  primaryLight: '#818cf8',
-  primaryDark: '#4f46e5',
-  success: '#16a34a',
-  warning: '#d97706',
-  danger: '#dc2626',
-  info: '#2563eb',
-  text: '#0f172a',
-  textMuted: '#475569',
-  textDim: '#64748b',
-  border: '#e2e8f0',
-  borderLight: '#cbd5e1',
+  background: '#F0F3F8',
+  surface: '#F0F3F8',
+  surfaceLight: '#E6EBF2',
+  surfacePressed: '#E4E9F2',
+  shadowLight: '#FFFFFF',
+  shadowDark: '#A6B4C8',
+  primary: '#6C5CE7',
+  primaryLight: '#A29BFE',
+  primaryDark: '#5B4BC4',
+  success: '#00B894',
+  warning: '#FFAB00',
+  danger: '#FF5252',
+  info: '#0984E3',
+  text: '#2D3436',
+  textMuted: '#636E72',
+  textDim: '#B2BEC3',
+  border: '#E2E8F0',
+  borderLight: '#EDF2F7',
   // Risk levels
-  low: '#16a34a',
-  moderate: '#d97706',
-  high: '#ea580c',
-  critical: '#dc2626',
+  low: '#00B894',
+  moderate: '#FFAB00',
+  high: '#FF7675',
+  critical: '#FF5252',
   // Gradients
-  gradientStart: '#6366f1',
-  gradientEnd: '#8b5cf6',
+  gradientStart: '#6C5CE7',
+  gradientEnd: '#A29BFE',
   // Chart colors
-  chart1: '#6366f1',
-  chart2: '#16a34a',
-  chart3: '#d97706',
-  chart4: '#2563eb',
-  chart5: '#db2777',
+  chart1: '#6C5CE7',
+  chart2: '#00B894',
+  chart3: '#FFAB00',
+  chart4: '#0984E3',
+  chart5: '#FF7675',
 };
 
-export type ThemeColors = typeof DarkColors;
+export type ThemeColors = typeof LightColors;
 
-// Static default export kept for any code that hasn't migrated to useTheme() yet.
-// Always resolves to the dark palette (the app's original, still-supported look).
-export const Colors = DarkColors;
+// Static default export resolved to LightColors for a fresh, attractive light look.
+export const Colors = LightColors;
 
-export const getRiskColor = (risk: string, colors: ThemeColors = DarkColors): string => {
+export const getRiskColor = (risk: string, colors: ThemeColors = LightColors): string => {
   switch (risk) {
     case 'low': return colors.low;
     case 'moderate': return colors.moderate;
@@ -78,7 +83,7 @@ export const getRiskColor = (risk: string, colors: ThemeColors = DarkColors): st
   }
 };
 
-export const getScoreColor = (score: number, colors: ThemeColors = DarkColors): string => {
+export const getScoreColor = (score: number, colors: ThemeColors = LightColors): string => {
   if (score >= 80) return colors.success;
   if (score >= 60) return colors.moderate;
   if (score >= 40) return colors.high;

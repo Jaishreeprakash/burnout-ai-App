@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import { dashboardApi } from '../services/api';
+import { dashboardApi, MOCK_DASHBOARD } from '../services/api';
 import { DashboardData } from '../types';
 
 export const useDashboard = () => {
@@ -8,7 +8,9 @@ export const useDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
   const navigation = useNavigation();
+  const errorLoggedRef = useRef(false);
 
   const fetchDashboard = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
@@ -21,9 +23,19 @@ export const useDashboard = () => {
     try {
       const dashboardData = await dashboardApi.getDashboard();
       setData(dashboardData);
-    } catch (err) {
-      setError('Failed to load dashboard data');
-      console.error('Dashboard fetch error:', err);
+      setIsOffline(false);
+      errorLoggedRef.current = false;
+    } catch (err: any) {
+      // Only log once to avoid console spam
+      if (!errorLoggedRef.current) {
+        console.warn('Dashboard fetch failed, using offline data:', err?.message);
+        errorLoggedRef.current = true;
+      }
+
+      // Gracefully fall back to mock/cached data so the app is still usable
+      setData((prev) => prev || MOCK_DASHBOARD);
+      setIsOffline(true);
+      setError('Using offline data — backend unreachable');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -43,5 +55,5 @@ export const useDashboard = () => {
 
   const refresh = () => fetchDashboard(true);
 
-  return { data, isLoading, isRefreshing, error, refresh };
+  return { data, isLoading, isRefreshing, error, isOffline, refresh };
 };

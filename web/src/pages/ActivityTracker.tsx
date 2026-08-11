@@ -7,6 +7,8 @@ import { Badge } from '../components/UI/Badge';
 import { ActivityRecord } from '../types';
 import { activityAPI } from '../services/api';
 import { useActivityPage } from '../hooks/useDashboard';
+import { predictCognitiveExhaustion } from '../services/mlEngine';
+import { Cpu } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 } from 'recharts';
@@ -145,6 +147,57 @@ export const ActivityTracker: React.FC = () => {
           <ProgressRing value={Math.round(today?.focus_score || 0)} goal={100} color="#6366f1" label="Focus Score" icon={<Target size={18} />} />
         </div>
       </Card>
+
+      {/* ML Model Cognitive Exhaustion Banner */}
+      {(() => {
+        const work = today ? today.work_hours : 6.0;
+        const study = today ? today.study_hours : 2.0;
+        const exercise = today ? today.exercise_minutes : 30;
+        const breaks = today ? today.break_count : 3;
+        
+        const pred = predictCognitiveExhaustion(
+          work,
+          study,
+          exercise,
+          breaks,
+          7.5
+        );
+
+        return (
+          <Card className="bg-gradient-to-r from-emerald-900/40 via-indigo-900/30 to-slate-900 border-emerald-500/30">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <Cpu size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-white">ML Cognitive Exhaustion & Focus Model</h3>
+                    <Badge variant="indigo">Linear Regression ML</Badge>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1">
+                    Evaluates work-to-break ratio & exercise patterns to forecast mental focus decay
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4 border-t md:border-t-0 md:border-l border-slate-700/60 pt-3 md:pt-0 md:pl-6">
+                <div>
+                  <p className="text-xs text-slate-400">ML Focus Score</p>
+                  <p className="text-xl font-bold text-emerald-400">{pred.predictedFocusScore}/100</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Exhaustion Prob.</p>
+                  <p className="text-xl font-bold text-amber-400">{Math.round(pred.mentalExhaustionProbability * 100)}%</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Rec. Break Interval</p>
+                  <p className="text-xl font-bold text-indigo-400">Every {pred.recommendedBreakIntervalMinutes}m</p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

@@ -55,6 +55,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+import logging
+import time
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("burnout_backend")
+
 # CORS — allow all origins for development
 app.add_middleware(
     CORSMiddleware,
@@ -63,6 +69,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = (time.time() - start_time) * 1000
+    logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({process_time:.1f}ms)")
+    return response
 
 
 @app.exception_handler(DataError)
@@ -553,4 +567,4 @@ def seed_user_data(user_id: int, db: Session = Depends(get_db)):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info", access_log=True)

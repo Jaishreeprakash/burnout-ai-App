@@ -7,6 +7,8 @@ import { Badge } from '../components/UI/Badge';
 import { PhoneUsageRecord } from '../types';
 import { phoneAPI } from '../services/api';
 import { usePhonePage } from '../hooks/useDashboard';
+import { predictDigitalAddiction } from '../services/mlEngine';
+import { Cpu } from 'lucide-react';
 import { DonutChart } from '../components/Charts/BarChart';
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip
@@ -140,6 +142,63 @@ export const PhoneUsage: React.FC = () => {
           </Card>
         ))}
       </div>
+
+      {/* ML Model Digital Overuse Banner */}
+      {(() => {
+        const totalScreen = today?.screen_time_hours ?? (avgScreenTime || 4.0);
+        const social = today?.app_usage_data?.social ? today.app_usage_data.social / 60 : 1.5;
+        const entertainment = today?.app_usage_data?.entertainment ? today.app_usage_data.entertainment / 60 : 1.0;
+        const productive = today?.app_usage_data?.work ? today.app_usage_data.work / 60 : 1.5;
+        const pickups = today?.pickups_count ?? 55;
+        const late = today?.late_night_usage ?? false;
+        
+        const pred = predictDigitalAddiction(
+          totalScreen,
+          social,
+          entertainment,
+          productive,
+          pickups,
+          late,
+          25.0
+        );
+
+        return (
+          <Card className="bg-gradient-to-r from-purple-900/40 via-indigo-900/30 to-slate-900 border-purple-500/30">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                  <Cpu size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-white">ML Digital Overuse & Addiction Classifier</h3>
+                    <Badge variant="indigo">Linear Classification ML</Badge>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1">
+                    Evaluates pickups, late night usage & distraction ratio to compute screen cap limits
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4 border-t md:border-t-0 md:border-l border-slate-700/60 pt-3 md:pt-0 md:pl-6">
+                <div>
+                  <p className="text-xs text-slate-400">Burnout Contribution</p>
+                  <p className="text-xl font-bold text-purple-400">{pred.burnoutContributionScore}/100</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Pattern Class</p>
+                  <Badge variant={pred.usagePatternClass === 'Compulsive_Addiction' ? 'danger' : pred.usagePatternClass === 'Distracted' ? 'warning' : 'success'}>
+                    {pred.usagePatternClass.replace('_', ' ')}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Rec. Screen Cap</p>
+                  <p className="text-xl font-bold text-green-400">{pred.recommendedScreenCapHours}h / day</p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

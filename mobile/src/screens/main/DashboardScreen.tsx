@@ -1,13 +1,12 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   RefreshControl,
   Animated,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -18,16 +17,23 @@ import { LineChart } from 'react-native-chart-kit';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '../../context/AuthContext';
 import { useDashboard } from '../../hooks/useDashboard';
+import { predictMasterBurnout } from '../../services/mlEngine';
 import BurnoutGauge from '../../components/BurnoutGauge';
 import WellnessRing from '../../components/WellnessRing';
 import MetricCard from '../../components/MetricCard';
 import RecommendationCard from '../../components/RecommendationCard';
-import { ThemeColors, getRiskColor, getScoreColor } from '../../constants/colors';
+import NeumorphicView from '../../components/NeumorphicView';
+import NeumorphicButton from '../../components/NeumorphicButton';
+import ParallaxScrollView from '../../components/ParallaxScrollView';
+import { ThemeColors, getRiskColor } from '../../constants/colors';
 import { useTheme } from '../../context/ThemeContext';
 import { AppStackParamList } from '../../navigation/AppNavigator';
 import { format } from 'date-fns';
 
-const { width } = Dimensions.get('window');
+import NotificationModal from '../../components/NotificationModal';
+import { NotificationService } from '../../services/notificationService';
+
+
 
 type DashboardNav = StackNavigationProp<AppStackParamList>;
 
@@ -35,18 +41,27 @@ const DashboardScreen: React.FC = () => {
   const { user } = useAuth();
   const { data, isLoading, isRefreshing, refresh } = useDashboard();
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const navigation = useNavigation<DashboardNav>();
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
+  const { width } = useWindowDimensions();
+  const contentWidth = Math.min(width, 680);
+
+  const [showNotifModal, setShowNotifModal] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(NotificationService.getUnreadCount());
+
+  useEffect(() => {
+    setUnreadCount(NotificationService.getUnreadCount());
+    const unsubscribe = NotificationService.subscribe(() => {
+      setUnreadCount(NotificationService.getUnreadCount());
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     if (!isLoading) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-        Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
-      ]).start();
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     }
   }, [isLoading]);
 
@@ -60,16 +75,37 @@ const DashboardScreen: React.FC = () => {
   const firstName = user?.full_name?.split(' ')[0] || user?.username || 'there';
   const today = format(new Date(), 'EEEE, MMMM d');
   const burnout = data?.burnout_analysis;
+
+  const mlPrediction = useMemo(() => {
+    const sleepQual = data?.recent_sleep?.quality_score ?? 75;
+    const sleepDur = data?.recent_sleep?.duration_hours ?? 7.5;
+    const screenTime = data?.recent_phone_usage?.total_hours ?? 4.0;
+    const pickups = data?.recent_phone_usage?.pickups_count ?? 50;
+    const workHours = data?.recent_activity?.work_hours ?? 6.0;
+    const exercise = data?.recent_activity?.exercise_minutes ?? 30;
+
+    return predictMasterBurnout(
+      sleepQual,
+      sleepDur,
+      screenTime,
+      pickups,
+      workHours,
+      exercise,
+      0.2,
+      75.0
+    );
+  }, [data]);
+
   const riskColor = burnout ? getRiskColor(burnout.risk_level, colors) : colors.primary;
 
   const chartConfig = {
     backgroundGradientFrom: colors.surface,
     backgroundGradientTo: colors.surface,
     decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
+    color: (opacity = 1) => `rgba(108, 92, 231, ${opacity})`,
     labelColor: () => colors.textMuted,
     propsForDots: { r: '4', strokeWidth: '2', stroke: colors.primary },
-    propsForBackgroundLines: { stroke: colors.border, strokeDasharray: '' },
+    propsForBackgroundLines: { stroke: colors.borderLight, strokeDasharray: '' },
   };
 
   const quickActions = [
@@ -78,6 +114,33 @@ const DashboardScreen: React.FC = () => {
     { icon: 'lightning-bolt', label: 'Activity', color: colors.warning, screen: 'Activity' },
     { icon: 'camera-outline', label: 'Face Scan', color: colors.primary, screen: 'Emotion' },
   ];
+
+  const headerComponent = (
+    <View style={styles.header}>
+      <View>
+        <Text style={styles.greeting}>{getGreeting()}, {firstName} 👋</Text>
+        <Text style={styles.date}>{today}</Text>
+      </View>
+      <TouchableOpacity
+        style={styles.notifButtonWrapper}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setShowNotifModal(true);
+        }}
+        accessibilityLabel="Notifications"
+        accessibilityRole="button"
+      >
+        <NeumorphicView variant="raised" borderRadius={16} padding={10} style={styles.notifButton}>
+          <MaterialCommunityIcons name="bell-ring-outline" size={22} color={colors.text} />
+          {unreadCount > 0 && (
+            <View style={[styles.notifDot, { backgroundColor: colors.danger }]}>
+              {unreadCount > 1 && <Text style={styles.notifDotText}>{unreadCount}</Text>}
+            </View>
+          )}
+        </NeumorphicView>
+      </TouchableOpacity>
+    </View>
+  );
 
   if (isLoading) {
     return (
@@ -88,11 +151,10 @@ const DashboardScreen: React.FC = () => {
   }
 
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]}>
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+    <View style={styles.root}>
+      <ParallaxScrollView
+        headerComponent={headerComponent}
+        headerHeight={140}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -101,21 +163,9 @@ const DashboardScreen: React.FC = () => {
           />
         }
       >
-        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.greeting}>{getGreeting()}, {firstName} 👋</Text>
-              <Text style={styles.date}>{today}</Text>
-            </View>
-            <TouchableOpacity style={styles.notifButton} accessibilityLabel="Notifications" accessibilityRole="button">
-              <MaterialCommunityIcons name="bell-outline" size={24} color={colors.text} />
-              <View style={styles.notifDot} />
-            </TouchableOpacity>
-          </View>
-
+        <Animated.View style={{ opacity: fadeAnim }}>
           {/* Burnout Risk Section */}
-          <View style={styles.burnoutSection}>
+          <NeumorphicView variant="raised" borderRadius={24} padding={20} style={styles.burnoutSection}>
             <Text style={styles.sectionTitle}>Burnout Risk Score</Text>
             <View style={styles.gaugeContainer}>
               <BurnoutGauge
@@ -125,7 +175,7 @@ const DashboardScreen: React.FC = () => {
               />
             </View>
             <LinearGradient
-              colors={[riskColor + '22', riskColor + '11']}
+              colors={[riskColor + '20', riskColor + '0D']}
               style={styles.riskBanner}
             >
               <MaterialCommunityIcons
@@ -138,109 +188,121 @@ const DashboardScreen: React.FC = () => {
                   ? 'Great job! Keep up your healthy habits.'
                   : burnout?.risk_level === 'moderate'
                   ? 'You\'re doing okay. Small improvements will help.'
-                  : 'High stress detected. Take breaks and rest.'}
+                  : 'High burnout risk detected. Take immediate breaks.'}
               </Text>
             </LinearGradient>
-          </View>
+          </NeumorphicView>
 
-          {/* Metrics Row */}
+          {/* Today's Metrics Grid */}
           <View style={styles.metricsSection}>
             <Text style={styles.sectionTitle}>Today's Metrics</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <MetricCard
-                title="Sleep Score"
-                value={burnout?.sleep_quality_score ?? 0}
-                icon="moon-waning-crescent"
-                unit="%"
-                score={burnout?.sleep_quality_score ?? 0}
-                change={data?.recent_sleep ? -5 : undefined}
-                onPress={() => navigation.navigate('Sleep' as any)}
-              />
-              <MetricCard
-                title="Phone Usage"
-                value={data?.recent_phone_usage ? `${data.recent_phone_usage.total_hours.toFixed(1)}` : '0.0'}
-                icon="cellphone"
-                unit="h"
-                score={burnout?.phone_usage_score ?? 0}
-                change={data?.recent_phone_usage ? 12 : undefined}
-                onPress={() => navigation.navigate('PhoneUsage' as any)}
-              />
-              <MetricCard
-                title="Activity"
-                value={burnout?.activity_score ?? 0}
-                icon="lightning-bolt"
-                unit="%"
-                score={burnout?.activity_score ?? 0}
-                change={data?.recent_activity ? 8 : undefined}
-                onPress={() => navigation.navigate('Activity' as any)}
-              />
-              <MetricCard
-                title="Mood Stability"
-                value={burnout?.emotional_stability_index ?? 0}
-                icon="heart-pulse"
-                unit="%"
-                score={burnout?.emotional_stability_index ?? 0}
-                change={data?.recent_emotion ? 3 : undefined}
-                onPress={() => navigation.navigate('Emotion' as any)}
-              />
-            </ScrollView>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+              <View style={{ flex: 1, minWidth: 140 }}>
+                <MetricCard
+                  title="Sleep Score"
+                  value={burnout?.sleep_quality_score ?? 0}
+                  unit="%"
+                  score={burnout?.sleep_quality_score ?? 0}
+                  icon="moon-waning-crescent"
+                  change={0}
+                  onPress={() => (navigation as any).navigate('MainTabs', { screen: 'Sleep' })}
+                />
+              </View>
+
+              <View style={{ flex: 1, minWidth: 140 }}>
+                <MetricCard
+                  title="Screen Time"
+                  value={data?.recent_phone_usage?.total_hours ? `${data.recent_phone_usage.total_hours.toFixed(1)}` : '0.0'}
+                  unit="h"
+                  score={burnout?.phone_usage_score ?? 0}
+                  icon="cellphone"
+                  change={0}
+                  onPress={() => (navigation as any).navigate('PhoneUsage')}
+                />
+              </View>
+
+              <View style={{ flex: 1, minWidth: 140 }}>
+                <MetricCard
+                  title="Activity"
+                  value={burnout?.activity_score ?? 0}
+                  unit="%"
+                  score={burnout?.activity_score ?? 0}
+                  icon="lightning-bolt"
+                  change={0}
+                  onPress={() => (navigation as any).navigate('MainTabs', { screen: 'Activity' })}
+                />
+              </View>
+
+              <View style={{ flex: 1, minWidth: 140 }}>
+                <MetricCard
+                  title="Mood Stability"
+                  value={burnout?.emotional_stability_index ?? 0}
+                  unit="%"
+                  score={burnout?.emotional_stability_index ?? 0}
+                  icon="emoticon-outline"
+                  change={0}
+                  onPress={() => (navigation as any).navigate('MainTabs', { screen: 'Emotion' })}
+                />
+              </View>
+            </View>
           </View>
 
-          {/* Wellness Score */}
+          {/* Wellness Balance */}
           <View style={styles.wellnessSection}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Overall Wellness</Text>
+              <Text style={styles.sectionTitle}>Wellness Balance</Text>
               <TouchableOpacity onPress={() => navigation.navigate('Analytics')}>
-                <Text style={styles.seeAll}>View Analytics →</Text>
+                <Text style={styles.seeAll}>Analytics →</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.wellnessCard}>
+            <NeumorphicView variant="raised" borderRadius={24} padding={20} style={styles.wellnessCard}>
               <View style={styles.wellnessLeft}>
-                <WellnessRing score={burnout?.wellness_score ?? 0} label="Wellness" size={110} />
+                <WellnessRing
+                  score={burnout?.wellness_score ?? 0}
+                  label="Wellness"
+                  size={110}
+                />
               </View>
               <View style={styles.wellnessRight}>
                 <WellnessRingLegend score={burnout?.sleep_quality_score ?? 0} label="Sleep" colors={colors} styles={styles} />
-                <WellnessRingLegend score={burnout?.emotional_stability_index ?? 0} label="Mood" colors={colors} styles={styles} />
+                <WellnessRingLegend score={burnout?.emotional_stability_index ?? 0} label="Emotion" colors={colors} styles={styles} />
                 <WellnessRingLegend score={burnout?.activity_score ?? 0} label="Activity" colors={colors} styles={styles} />
                 <WellnessRingLegend score={burnout?.phone_usage_score ?? 0} label="Screen" colors={colors} styles={styles} />
               </View>
-            </View>
+            </NeumorphicView>
           </View>
 
           {/* Emotional Stability Chart */}
           <View style={styles.chartSection}>
             <Text style={styles.sectionTitle}>Emotional Stability (7 Days)</Text>
-            <View style={styles.chartCard}>
+            <NeumorphicView variant="raised" borderRadius={24} padding={12} style={styles.chartCard} pointerEvents="none">
               <LineChart
                 data={{
                   labels: data?.trend_data.dates ?? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
                   datasets: [
                     {
-                      data: data?.trend_data.emotion_scores ?? [50, 55, 68, 72, 60, 75, 68],
-                      color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
-                      strokeWidth: 2.5,
+                      data: data?.trend_data.emotion_scores ?? [0, 0, 0, 0, 0, 0, 0],
+                      color: (opacity = 1) => `rgba(108, 92, 231, ${opacity})`,
+                      strokeWidth: 3,
                     },
                   ],
                 }}
-                width={width - 48}
+                width={contentWidth - 64}
                 height={180}
                 chartConfig={chartConfig}
                 bezier
                 style={styles.chart}
-                withInnerLines
-                withOuterLines={false}
-                fromZero={false}
               />
-            </View>
+            </NeumorphicView>
           </View>
 
-          {/* AI Recommendation */}
-          {burnout?.recommendations?.[0] && (
+          {/* AI Recommendation Spotlight */}
+          {burnout?.recommendations && burnout.recommendations.length > 0 && (
             <View style={styles.recSection}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Top AI Recommendation</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('Recommendations')}>
-                  <Text style={styles.seeAll}>See all →</Text>
+                <Text style={styles.sectionTitle}>Top AI Insight</Text>
+                <TouchableOpacity onPress={() => (navigation as any).navigate('Recommendations')}>
+                  <Text style={styles.seeAll}>All ({burnout.recommendations.length}) →</Text>
                 </TouchableOpacity>
               </View>
               <View style={styles.recWrapper}>
@@ -260,32 +322,36 @@ const DashboardScreen: React.FC = () => {
               {quickActions.map((action) => (
                 <TouchableOpacity
                   key={action.label}
-                  style={styles.quickAction}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     (navigation as any).navigate('MainTabs', { screen: action.screen });
                   }}
-                  activeOpacity={0.7}
+                  activeOpacity={0.8}
+                  style={styles.quickActionItem}
                 >
-                  <View style={[styles.quickActionIcon, { backgroundColor: action.color + '22' }]}>
+                  <NeumorphicView variant="raised" borderRadius={20} padding={16} style={styles.quickActionIcon}>
                     <MaterialCommunityIcons name={action.icon as any} size={24} color={action.color} />
-                  </View>
+                  </NeumorphicView>
                   <Text style={styles.quickActionLabel}>{action.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </View>
-
-          {/* Bottom padding */}
-          <View style={{ height: 30 }} />
         </Animated.View>
-      </ScrollView>
+      </ParallaxScrollView>
+
+      {/* Notification Center Modal */}
+      <NotificationModal
+        visible={showNotifModal}
+        onClose={() => setShowNotifModal(false)}
+        onNavigate={(screen) => (navigation as any).navigate(screen)}
+      />
     </View>
   );
 };
 
 const WellnessRingLegend: React.FC<{ score: number; label: string; colors: ThemeColors; styles: ReturnType<typeof createStyles> }> = ({ score, label, colors, styles }) => {
-  const color = getScoreColor(score, colors);
+  const color = getRiskColor('low', colors);
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendDot, { backgroundColor: color }]} />
@@ -320,40 +386,59 @@ const SkeletonLoader: React.FC<{ colors: ThemeColors }> = ({ colors }) => {
 
 const createStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingVertical: 20 },
-  greeting: { fontSize: 22, fontWeight: '800', color: colors.text },
-  date: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  notifButton: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
-  notifDot: { position: 'absolute', top: 10, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: colors.danger, borderWidth: 1.5, borderColor: colors.background },
-  burnoutSection: { backgroundColor: colors.surface, borderRadius: 24, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12 },
-  gaugeContainer: { alignItems: 'center', marginVertical: 8 },
-  riskBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, marginTop: 12 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  greeting: { fontSize: 24, fontWeight: '800', color: colors.text },
+  date: { fontSize: 13, color: colors.textMuted, marginTop: 2, fontWeight: '500' },
+  notifButtonWrapper: {},
+  notifButton: { justifyContent: 'center', alignItems: 'center', position: 'relative' },
+  notifDot: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.danger,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  notifDotText: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  burnoutSection: { marginBottom: 18 },
+  sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 12 },
+  gaugeContainer: { alignItems: 'center', marginVertical: 4 },
+  riskBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 14, marginTop: 8 },
   riskBannerText: { fontSize: 13, fontWeight: '600', flex: 1 },
-  metricsSection: { marginBottom: 16 },
+  metricsSection: { marginBottom: 20 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  seeAll: { fontSize: 13, color: colors.primary, fontWeight: '600' },
-  wellnessSection: { marginBottom: 16 },
-  wellnessCard: { backgroundColor: colors.surface, borderRadius: 20, padding: 20, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.border },
+  seeAll: { fontSize: 13, color: colors.primary, fontWeight: '700' },
+  wellnessSection: { marginBottom: 20 },
+  wellnessCard: { flexDirection: 'row', alignItems: 'center' },
   wellnessLeft: { marginRight: 24 },
   wellnessRight: { flex: 1, gap: 10 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendLabel: { fontSize: 13, color: colors.textMuted, flex: 1 },
+  legendLabel: { fontSize: 13, color: colors.textMuted, flex: 1, fontWeight: '500' },
   legendScore: { fontSize: 13, fontWeight: '700' },
-  chartSection: { marginBottom: 16 },
-  chartCard: { backgroundColor: colors.surface, borderRadius: 20, padding: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  chartSection: { marginBottom: 20 },
+  chartCard: { overflow: 'hidden' },
   chart: { borderRadius: 12, marginLeft: -10 },
-  recSection: { marginBottom: 16 },
+  recSection: { marginBottom: 20 },
   recWrapper: { position: 'relative' },
   aiTag: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 8 },
   aiTagText: { fontSize: 12, color: colors.primary, fontWeight: '700' },
-  quickActionsSection: { marginBottom: 16 },
+  quickActionsSection: { marginBottom: 20 },
   quickActionsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  quickAction: { alignItems: 'center', gap: 8 },
-  quickActionIcon: { width: 60, height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+  quickActionItem: { alignItems: 'center', gap: 8 },
+  quickActionIcon: { width: 62, height: 62, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   quickActionLabel: { fontSize: 11, color: colors.textMuted, fontWeight: '600', textAlign: 'center' },
 });
 

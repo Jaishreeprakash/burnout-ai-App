@@ -155,10 +155,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
           <div className={clsx('flex', collapsed ? 'flex-col gap-1' : 'items-center gap-2')}>
             <button
-              onClick={handleLogout}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                logout();
+              }}
               aria-label="Logout"
               className={clsx(
-                'flex items-center gap-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-150 text-sm',
+                'flex items-center gap-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-150 text-sm cursor-pointer',
                 collapsed ? 'p-2.5 justify-center w-full' : 'px-3 py-2 flex-1'
               )}
               title={collapsed ? 'Logout' : undefined}

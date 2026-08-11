@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, AuthState, LoginCredentials, RegisterData } from '../types';
 import { authAPI } from '../services/api';
 import { authStorage } from '../services/auth';
@@ -113,10 +114,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const navigate = useNavigate();
+
   const logout = useCallback(() => {
     authStorage.clearAuth();
     setState({ user: null, token: null, isAuthenticated: false, isLoading: false });
-  }, []);
+    navigate('/login', { replace: true });
+  }, [navigate]);
 
   const updateUser = useCallback((user: User) => {
     authStorage.setUser(user);

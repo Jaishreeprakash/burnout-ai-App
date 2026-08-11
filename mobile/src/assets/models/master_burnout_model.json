@@ -1,0 +1,44 @@
+{
+  "features": [
+    "avg_sleep_qual_7d",
+    "avg_sleep_dur_7d",
+    "avg_screen_time_7d",
+    "avg_pickups_7d",
+    "avg_work_hours_7d",
+    "avg_exercise_7d",
+    "neg_emotion_ratio_7d",
+    "emotion_stability_7d"
+  ],
+  "master_score_model": {
+    "coefficients": [
+      -0.2899,
+      -0.1194,
+      3.9349,
+      0.0015,
+      3.2705,
+      -0.1974,
+      24.9274,
+      -0.1918
+    ],
+    "intercept": 42.9384
+  },
+  "future_7d_model": {
+    "coefficients": [
+      -0.2908,
+      -0.1531,
+      3.8995,
+      -0.0014,
+      3.2891,
+      -0.1972,
+      24.3643,
+      -0.1859
+    ],
+    "intercept": 44.6523
+  },
+  "risk_levels": [
+    "low",
+    "moderate",
+    "high",
+    "critical"
+  ]
+}

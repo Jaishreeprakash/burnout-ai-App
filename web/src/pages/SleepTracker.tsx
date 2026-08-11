@@ -7,6 +7,8 @@ import { Badge } from '../components/UI/Badge';
 import { sleepAPI } from '../services/api';
 import { SleepRecord } from '../types';
 import { useSleepPage } from '../hooks/useDashboard';
+import { predictSleepQuality } from '../services/mlEngine';
+import { Cpu, Zap, AlertTriangle } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell
 } from 'recharts';
@@ -144,9 +146,63 @@ export const SleepTracker: React.FC = () => {
       </div>
 
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader title="Sleep Duration" subtitle="Last 7 nights (hours)" />
+        <div className="space-y-6">
+          {/* ML Model Sleep Prediction Banner */}
+          {(() => {
+            const latestSleep = allRecords[allRecords.length - 1];
+            const bedHour = latestSleep ? parseInt((latestSleep.bedtime || '23:00').split(':')[0]) : 23;
+            const wakeHour = latestSleep ? parseInt((latestSleep.wake_time || '07:00').split(':')[0]) : 7;
+            const pred = predictSleepQuality(
+              bedHour,
+              wakeHour,
+              latestSleep ? latestSleep.duration_hours : 7.5,
+              1,
+              4.0,
+              bedHour < 5 || bedHour >= 24,
+              30,
+              5
+            );
+            return (
+              <Card className="bg-gradient-to-r from-indigo-900/40 via-purple-900/30 to-slate-900 border-indigo-500/30">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                      <Cpu size={22} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-white">ML Sleep Quality & Recovery Predictor</h3>
+                        <Badge variant="indigo">Linear Regression ML</Badge>
+                      </div>
+                      <p className="text-xs text-slate-300 mt-1">
+                        Client-Side Model Inference based on bedtime schedule, duration & fatigue vectors
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 border-t md:border-t-0 md:border-l border-slate-700/60 pt-3 md:pt-0 md:pl-6">
+                    <div>
+                      <p className="text-xs text-slate-400">ML Sleep Score</p>
+                      <p className="text-xl font-bold text-indigo-400">{pred.predictedQualityScore}/100</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Fatigue Index</p>
+                      <p className="text-xl font-bold text-amber-400">{pred.fatigueIndex}%</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Circadian Risk</p>
+                      <Badge variant={pred.circadianDisruptionLevel === 'High' ? 'danger' : pred.circadianDisruptionLevel === 'Moderate' ? 'warning' : 'success'}>
+                        {pred.circadianDisruptionLevel}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            );
+          })()}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader title="Sleep Duration" subtitle="Last 7 nights (hours)" />
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
@@ -190,7 +246,8 @@ export const SleepTracker: React.FC = () => {
             )}
           </Card>
         </div>
-      )}
+      </div>
+    )}
 
       {activeTab === 'calendar' && (
         <Card>

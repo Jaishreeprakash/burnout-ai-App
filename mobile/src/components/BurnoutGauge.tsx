@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import Svg, { Path, Circle, Line, G, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import Svg, { Path, Circle, G, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { ThemeColors, getRiskColor } from '../constants/colors';
 import { useTheme } from '../context/ThemeContext';
 import { RiskLevel } from '../types';
@@ -12,7 +12,7 @@ interface BurnoutGaugeProps {
 }
 
 const BurnoutGauge: React.FC<BurnoutGaugeProps> = ({ score, riskLevel, size = 220 }) => {
-  const { colors } = useTheme();
+  const { colors, scheme } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const animatedScore = useRef(new Animated.Value(0)).current;
 
@@ -27,11 +27,7 @@ const BurnoutGauge: React.FC<BurnoutGaugeProps> = ({ score, riskLevel, size = 22
   const cx = size / 2;
   const cy = size / 2;
   const r = size * 0.38;
-  const strokeWidth = size * 0.072;
-
-  // Semicircle from 180° to 0° (left to right across top)
-  const startAngle = Math.PI; // 180 deg
-  const endAngle = 0; // 0 deg
+  const strokeWidth = size * 0.076;
 
   const polarToCartesian = (angle: number, radius: number) => ({
     x: cx + radius * Math.cos(angle),
@@ -45,11 +41,10 @@ const BurnoutGauge: React.FC<BurnoutGaugeProps> = ({ score, riskLevel, size = 22
     return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 1 ${end.x} ${end.y}`;
   };
 
-  // Score angle: 0 → left (180°), 100 → right (0°)
-  const scoreAngle = Math.PI - (score / 100) * Math.PI;
-  const needleTip = polarToCartesian(scoreAngle, r - 5);
-  const needleBase1 = polarToCartesian(scoreAngle + Math.PI / 2, 8);
-  const needleBase2 = polarToCartesian(scoreAngle - Math.PI / 2, 8);
+  const scoreAngle = Math.PI - (Math.min(100, Math.max(0, score)) / 100) * Math.PI;
+  const needleTip = polarToCartesian(scoreAngle, r - 4);
+  const needleBase1 = polarToCartesian(scoreAngle + Math.PI / 2, 7);
+  const needleBase2 = polarToCartesian(scoreAngle - Math.PI / 2, 7);
 
   const color = getRiskColor(riskLevel, colors);
 
@@ -60,50 +55,39 @@ const BurnoutGauge: React.FC<BurnoutGaugeProps> = ({ score, riskLevel, size = 22
     critical: 'Critical Risk',
   };
 
-  // Zone arcs
-  const zones = [
-    { from: Math.PI, to: Math.PI * 0.75, color: colors.low },
-    { from: Math.PI * 0.75, to: Math.PI * 0.5, color: colors.moderate },
-    { from: Math.PI * 0.5, to: Math.PI * 0.25, color: colors.high },
-    { from: Math.PI * 0.25, to: 0, color: colors.critical },
-  ];
+  const isLight = scheme === 'light';
 
   return (
     <View style={styles.container}>
-      <Svg width={size} height={size * 0.65}>
+      <Svg width={size} height={size * 0.62}>
         <Defs>
-          <SvgGradient id="needleGrad" x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={color} stopOpacity="0.8" />
-            <Stop offset="1" stopColor={color} stopOpacity="0.2" />
+          <SvgGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0%" stopColor={colors.primaryLight} />
+            <Stop offset="100%" stopColor={color} />
           </SvgGradient>
         </Defs>
 
-        {/* Background track */}
+        {/* Neumorphic Background track channel */}
         <Path
           d={describeArc(Math.PI, 0, r)}
-          stroke={colors.surfaceLight}
-          strokeWidth={strokeWidth}
+          stroke={isLight ? '#E4E9F2' : '#141720'}
+          strokeWidth={strokeWidth + 4}
           strokeLinecap="round"
           fill="none"
         />
-
-        {/* Zone arcs */}
-        {zones.map((zone, i) => (
-          <Path
-            key={i}
-            d={describeArc(zone.from, zone.to, r)}
-            stroke={zone.color}
-            strokeWidth={strokeWidth - 4}
-            strokeLinecap="butt"
-            fill="none"
-            opacity={0.35}
-          />
-        ))}
+        <Path
+          d={describeArc(Math.PI, 0, r)}
+          stroke={isLight ? '#CBD5E1' : '#282D3C'}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          fill="none"
+          opacity={0.6}
+        />
 
         {/* Score arc */}
         <Path
           d={describeArc(Math.PI, scoreAngle, r)}
-          stroke={color}
+          stroke="url(#gaugeGrad)"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           fill="none"
@@ -116,18 +100,18 @@ const BurnoutGauge: React.FC<BurnoutGaugeProps> = ({ score, riskLevel, size = 22
             fill={color}
             opacity={0.9}
           />
-          <Circle cx={cx} cy={cy} r={10} fill={colors.surface} stroke={color} strokeWidth={2} />
+          <Circle cx={cx} cy={cy} r={11} fill={colors.surface} stroke={color} strokeWidth={2.5} />
           <Circle cx={cx} cy={cy} r={5} fill={color} />
         </G>
 
-        {/* Score labels */}
+        {/* Score tick dots */}
         <G>
           {[0, 25, 50, 75, 100].map((val) => {
             const angle = Math.PI - (val / 100) * Math.PI;
             const pt = polarToCartesian(angle, r + strokeWidth / 2 + 10);
             return (
               <G key={val}>
-                <Circle cx={pt.x} cy={pt.y} r={2} fill={colors.textMuted} />
+                <Circle cx={pt.x} cy={pt.y} r={2.5} fill={colors.textMuted} opacity={0.6} />
               </G>
             );
           })}
@@ -151,24 +135,24 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   scoreContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginTop: -24,
+    marginTop: -22,
   },
   score: {
-    fontSize: 52,
+    fontSize: 48,
     fontWeight: '800',
-    lineHeight: 60,
+    lineHeight: 54,
   },
   scoreLabel: {
-    fontSize: 18,
+    fontSize: 16,
     color: colors.textMuted,
     marginLeft: 4,
     fontWeight: '600',
   },
   riskText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    letterSpacing: 0.5,
-    marginTop: 4,
+    letterSpacing: 0.4,
+    marginTop: 2,
   },
 });
 

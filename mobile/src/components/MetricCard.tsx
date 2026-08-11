@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ThemeColors, getScoreColor } from '../constants/colors';
 import { useTheme } from '../context/ThemeContext';
+import NeumorphicView from './NeumorphicView';
 
 interface MetricCardProps {
   title: string;
@@ -23,7 +24,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
   unit,
   score,
   onPress,
-  width = 140,
+  width = 145,
 }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -32,111 +33,118 @@ const MetricCard: React.FC<MetricCardProps> = ({
 
   return (
     <TouchableOpacity
-      style={[styles.card, { width, borderLeftColor: color }]}
       onPress={onPress}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
+      style={{ marginRight: 14 }}
     >
-      <View style={styles.header}>
-        <View style={[styles.iconContainer, { backgroundColor: color + '22' }]}>
-          <MaterialCommunityIcons name={icon as any} size={18} color={color} />
+      <NeumorphicView
+        variant="raised"
+        borderRadius={20}
+        padding={14}
+        style={StyleSheet.flatten([styles.card, { width, borderLeftWidth: 3, borderLeftColor: color }])}
+      >
+        <View style={styles.header}>
+          <View style={[styles.iconContainer, { backgroundColor: color + '1A' }]}>
+            <MaterialCommunityIcons name={icon as any} size={18} color={color} />
+          </View>
+          {change !== undefined && (
+            <View
+              style={[
+                styles.changeBadge,
+                { backgroundColor: isPositive ? colors.success + '1F' : colors.danger + '1F' },
+              ]}
+            >
+              <MaterialCommunityIcons
+                name={isPositive ? 'trending-up' : 'trending-down'}
+                size={12}
+                color={isPositive ? colors.success : colors.danger}
+              />
+              <Text style={[styles.changeText, { color: isPositive ? colors.success : colors.danger }]}>
+                {Math.abs(change)}%
+              </Text>
+            </View>
+          )}
         </View>
-        {change !== undefined && (
-          <View style={[styles.changeBadge, { backgroundColor: isPositive ? colors.success + '22' : colors.danger + '22' }]}>
-            <MaterialCommunityIcons
-              name={isPositive ? 'trending-up' : 'trending-down'}
-              size={12}
-              color={isPositive ? colors.success : colors.danger}
+
+        <Text style={[styles.value, { color }]}>
+          {value}
+          {unit && <Text style={styles.unit}>{unit}</Text>}
+        </Text>
+
+        <Text style={styles.title} numberOfLines={1}>{title}</Text>
+
+        {score !== undefined && (
+          <View style={styles.scoreBarBackground}>
+            <View
+              style={[
+                styles.scoreBarFill,
+                { width: `${Math.min(100, Math.max(0, score))}%` as any, backgroundColor: color },
+              ]}
             />
-            <Text style={[styles.changeText, { color: isPositive ? colors.success : colors.danger }]}>
-              {Math.abs(change)}%
-            </Text>
           </View>
         )}
-      </View>
-
-      <Text style={[styles.value, { color }]}>
-        {value}
-        {unit && <Text style={styles.unit}>{unit}</Text>}
-      </Text>
-
-      <Text style={styles.title}>{title}</Text>
-
-      {score !== undefined && (
-        <View style={styles.scoreBar}>
-          <View
-            style={[
-              styles.scoreBarFill,
-              { width: `${score}%` as any, backgroundColor: color },
-            ]}
-          />
-        </View>
-      )}
+      </NeumorphicView>
     </TouchableOpacity>
   );
 };
 
-const createStyles = (colors: ThemeColors) => StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    borderLeftWidth: 3,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  iconContainer: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  changeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    gap: 2,
-  },
-  changeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  value: {
-    fontSize: 26,
-    fontWeight: '800',
-    lineHeight: 32,
-    marginBottom: 4,
-  },
-  unit: {
-    fontSize: 14,
-    fontWeight: '600',
-    opacity: 0.7,
-  },
-  title: {
-    fontSize: 12,
-    color: colors.textMuted,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  scoreBar: {
-    height: 3,
-    backgroundColor: colors.surfaceLight,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  scoreBarFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: {
+      justifyContent: 'space-between',
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    iconContainer: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    changeBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+      borderRadius: 8,
+      gap: 2,
+    },
+    changeText: {
+      fontSize: 10,
+      fontWeight: '700',
+    },
+    value: {
+      fontSize: 24,
+      fontWeight: '800',
+      lineHeight: 28,
+      marginBottom: 4,
+    },
+    unit: {
+      fontSize: 13,
+      fontWeight: '600',
+      opacity: 0.7,
+    },
+    title: {
+      fontSize: 12,
+      color: colors.textMuted,
+      fontWeight: '600',
+      marginBottom: 8,
+    },
+    scoreBarBackground: {
+      height: 4,
+      backgroundColor: colors.surfacePressed,
+      borderRadius: 2,
+      overflow: 'hidden',
+    },
+    scoreBarFill: {
+      height: '100%',
+      borderRadius: 2,
+    },
+  });
 
 export default MetricCard;

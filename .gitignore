@@ -71,3 +71,8 @@ reports/executive-summary.md
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# ── Stray HTTP test files ───────────────────────────────────────────────────
+mobile/200
+mobile/404
+

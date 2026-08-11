@@ -1,7 +1,7 @@
 import React from 'react';
 import { clsx } from 'clsx';
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple';
+type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple' | 'indigo' | 'neutral';
 
 interface BadgeProps {
   children: React.ReactNode;
@@ -25,6 +25,8 @@ export const Badge: React.FC<BadgeProps> = ({
     danger:  'bg-red-500/10 text-red-400 border-red-500/30',
     info:    'bg-blue-500/10 text-blue-400 border-blue-500/30',
     purple:  'bg-purple-500/10 text-purple-400 border-purple-500/30',
+    indigo:  'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
+    neutral: 'bg-slate-800 text-slate-400 border-slate-700',
   };
 
   const dotColors: Record<BadgeVariant, string> = {
@@ -34,6 +36,8 @@ export const Badge: React.FC<BadgeProps> = ({
     danger:  'bg-red-400',
     info:    'bg-blue-400',
     purple:  'bg-purple-400',
+    indigo:  'bg-indigo-400',
+    neutral: 'bg-slate-400',
   };
 
   const sizes = { sm: 'text-xs px-2 py-0.5', md: 'text-xs px-2.5 py-1' };

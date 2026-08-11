@@ -151,14 +151,13 @@ def get_dashboard(
     db: Session = Depends(get_db),
 ):
     """Get full nested aggregated dashboard data combining all metrics."""
-    # Check if user has any records at all
-    has_records = (
-        db.query(SleepRecord).filter(SleepRecord.user_id == current_user.id).first() is not None or
-        db.query(PhoneUsageRecord).filter(PhoneUsageRecord.user_id == current_user.id).first() is not None or
-        db.query(EmotionRecord).filter(EmotionRecord.user_id == current_user.id).first() is not None or
-        db.query(ActivityRecord).filter(ActivityRecord.user_id == current_user.id).first() is not None or
-        db.query(TypingBehaviorRecord).filter(TypingBehaviorRecord.user_id == current_user.id).first() is not None
-    )
+    # Fetch latest individual records first
+    recent_sleep = db.query(SleepRecord).filter(SleepRecord.user_id == current_user.id).order_by(SleepRecord.date.desc()).first()
+    recent_phone = db.query(PhoneUsageRecord).filter(PhoneUsageRecord.user_id == current_user.id).order_by(PhoneUsageRecord.date.desc()).first()
+    recent_emotion = db.query(EmotionRecord).filter(EmotionRecord.user_id == current_user.id).order_by(EmotionRecord.timestamp.desc()).first()
+    recent_activity = db.query(ActivityRecord).filter(ActivityRecord.user_id == current_user.id).order_by(ActivityRecord.date.desc()).first()
+
+    has_records = (recent_sleep is not None or recent_phone is not None or recent_emotion is not None or recent_activity is not None)
 
     from routes.burnout import _build_analysis
     from schemas.tracking import ComponentScores, BurnoutAnalysis
@@ -216,55 +215,36 @@ def get_dashboard(
             trend_data=trend_data,
         )
 
-    # Fetch latest individual records
-    recent_sleep = db.query(SleepRecord).filter(SleepRecord.user_id == current_user.id).order_by(SleepRecord.date.desc()).first()
-    recent_phone = db.query(PhoneUsageRecord).filter(PhoneUsageRecord.user_id == current_user.id).order_by(PhoneUsageRecord.date.desc()).first()
-    recent_emotion = db.query(EmotionRecord).filter(EmotionRecord.user_id == current_user.id).order_by(EmotionRecord.timestamp.desc()).first()
-    recent_activity = db.query(ActivityRecord).filter(ActivityRecord.user_id == current_user.id).order_by(ActivityRecord.date.desc()).first()
+    # Generate 7-day trend series using bulk batch queries
+    now = datetime.now(timezone.utc)
+    cutoff_7d = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Generate 7-day trend series (ending today)
+    bo_recs = db.query(BurnoutRecord).filter(BurnoutRecord.user_id == current_user.id, BurnoutRecord.date >= cutoff_7d).all()
+    wl_recs = db.query(WellnessScore).filter(WellnessScore.user_id == current_user.id, WellnessScore.date >= cutoff_7d).all()
+    sl_recs = db.query(SleepRecord).filter(SleepRecord.user_id == current_user.id, SleepRecord.date >= cutoff_7d).all()
+    em_recs = db.query(EmotionRecord).filter(EmotionRecord.user_id == current_user.id, EmotionRecord.timestamp >= cutoff_7d).all()
+
+    bo_by_day = {r.date.strftime("%Y-%m-%d"): r.burnout_score for r in bo_recs}
+    wl_by_day = {r.date.strftime("%Y-%m-%d"): r.overall_score for r in wl_recs}
+    sl_by_day = {r.duration_hours for r in sl_recs}
+    sl_dict = {r.date.strftime("%Y-%m-%d"): r.duration_hours for r in sl_recs}
+    em_dict = {r.timestamp.strftime("%Y-%m-%d"): r.confidence * 100 for r in em_recs}
+
     dates = []
     burnout_scores = []
     wellness_scores = []
     sleep_scores = []
     emotion_scores = []
 
-    now = datetime.now(timezone.utc)
     for i in range(6, -1, -1):
         day = now - timedelta(days=i)
-        day_str = day.strftime("%a")  # Mon, Tue...
-        dates.append(day_str)
+        dates.append(day.strftime("%a"))
+        key = day.strftime("%Y-%m-%d")
 
-        start_of_day = day.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_day = day.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-        bo_rec = db.query(BurnoutRecord).filter(
-            BurnoutRecord.user_id == current_user.id,
-            BurnoutRecord.date >= start_of_day,
-            BurnoutRecord.date <= end_of_day
-        ).order_by(BurnoutRecord.date.desc()).first()
-        burnout_scores.append(bo_rec.burnout_score if bo_rec else 0.0)
-
-        wl_rec = db.query(WellnessScore).filter(
-            WellnessScore.user_id == current_user.id,
-            WellnessScore.date >= start_of_day,
-            WellnessScore.date <= end_of_day
-        ).order_by(WellnessScore.date.desc()).first()
-        wellness_scores.append(wl_rec.overall_score if wl_rec else 0.0)
-
-        sl_rec = db.query(SleepRecord).filter(
-            SleepRecord.user_id == current_user.id,
-            SleepRecord.date >= start_of_day,
-            SleepRecord.date <= end_of_day
-        ).order_by(SleepRecord.date.desc()).first()
-        sleep_scores.append(sl_rec.duration_hours if sl_rec else 0.0)
-
-        em_rec = db.query(EmotionRecord).filter(
-            EmotionRecord.user_id == current_user.id,
-            EmotionRecord.timestamp >= start_of_day,
-            EmotionRecord.timestamp <= end_of_day
-        ).order_by(EmotionRecord.timestamp.desc()).first()
-        emotion_scores.append(em_rec.confidence * 100 if em_rec else 0.0)
+        burnout_scores.append(bo_by_day.get(key, 0.0))
+        wellness_scores.append(wl_by_day.get(key, 0.0))
+        sleep_scores.append(sl_dict.get(key, 0.0))
+        emotion_scores.append(em_dict.get(key, 0.0))
 
     trend_data = DashboardTrendData(
         dates=dates,
@@ -338,8 +318,16 @@ def get_trends(
         )
         return [{"date": r.date.strftime("%Y-%m-%d"), "exercise_minutes": r.exercise_minutes, "focus_score": r.focus_score, "work_hours": r.work_hours} for r in recs]
 
-    burnout_7d = _fetch_burnout(cutoff_7)
     burnout_30d = _fetch_burnout(cutoff_30)
+    sleep_30d = _fetch_sleep(cutoff_30)
+    wellness_30d = _fetch_wellness(cutoff_30)
+    activity_30d = _fetch_activity(cutoff_30)
+
+    cutoff_7_str = cutoff_7.strftime("%Y-%m-%d")
+    burnout_7d = [r for r in burnout_30d if r["date"] >= cutoff_7_str]
+    sleep_7d = [r for r in sleep_30d if r["date"] >= cutoff_7_str]
+    wellness_7d = [r for r in wellness_30d if r["date"] >= cutoff_7_str]
+    activity_7d = [r for r in activity_30d if r["date"] >= cutoff_7_str]
 
     # Trend prediction
     scores_30d = [r["burnout_score"] for r in burnout_30d]
@@ -348,15 +336,15 @@ def get_trends(
     return {
         "seven_day": {
             "burnout": burnout_7d,
-            "sleep": _fetch_sleep(cutoff_7),
-            "wellness": _fetch_wellness(cutoff_7),
-            "activity": _fetch_activity(cutoff_7),
+            "sleep": sleep_7d,
+            "wellness": wellness_7d,
+            "activity": activity_7d,
         },
         "thirty_day": {
             "burnout": burnout_30d,
-            "sleep": _fetch_sleep(cutoff_30),
-            "wellness": _fetch_wellness(cutoff_30),
-            "activity": _fetch_activity(cutoff_30),
+            "sleep": sleep_30d,
+            "wellness": wellness_30d,
+            "activity": activity_30d,
         },
         "prediction": trend_prediction,
     }

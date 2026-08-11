@@ -39,7 +39,6 @@ const AppNavigator: React.FC = () => {
           headerStyle: { backgroundColor: colors.surface },
           headerTintColor: colors.text,
           headerTitle: 'Analytics',
-          headerBackTitleVisible: false,
         }}
       />
       <Stack.Screen
@@ -50,7 +49,6 @@ const AppNavigator: React.FC = () => {
           headerStyle: { backgroundColor: colors.surface },
           headerTintColor: colors.text,
           headerTitle: 'AI Recommendations',
-          headerBackTitleVisible: false,
         }}
       />
       <Stack.Screen
@@ -61,7 +59,6 @@ const AppNavigator: React.FC = () => {
           headerStyle: { backgroundColor: colors.surface },
           headerTintColor: colors.text,
           headerTitle: 'Phone Usage',
-          headerBackTitleVisible: false,
         }}
       />
     </Stack.Navigator>

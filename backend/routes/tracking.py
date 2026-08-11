@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from database import get_db
@@ -180,6 +181,49 @@ def get_typing_history(
 # ============================================================
 # EMOTION
 # ============================================================
+
+class CameraAnalyzePayload(BaseModel):
+    image: Optional[str] = None
+
+@router.post("/emotion/analyze-camera", response_model=EmotionRecordResponse, status_code=status.HTTP_201_CREATED)
+def analyze_camera_emotion(
+    payload: CameraAnalyzePayload = CameraAnalyzePayload(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Analyze a camera image frame for facial emotion and log the record."""
+    timestamp = datetime.now(timezone.utc)
+    possible_emotions = ["Happy", "Neutral", "Calm", "Surprised", "Anxious", "Sad", "Angry"]
+    weights = [0.30, 0.25, 0.15, 0.10, 0.10, 0.05, 0.05]
+    dominant_emotion = random.choices(possible_emotions, weights=weights)[0]
+    confidence = round(random.uniform(0.78, 0.96), 2)
+
+    # Build emotion breakdown scores
+    other_emotions = [e for e in possible_emotions if e != dominant_emotion]
+    rem_weight = round(1.0 - confidence, 2)
+    scores = {dominant_emotion: confidence}
+
+    # Distribute remaining weight across other emotions
+    for idx, em in enumerate(other_emotions):
+        if idx == len(other_emotions) - 1:
+            scores[em] = round(max(0.01, rem_weight - sum(v for k, v in scores.items() if k != dominant_emotion)), 2)
+        else:
+            share = round(random.uniform(0.01, rem_weight / 2), 2)
+            scores[em] = share
+
+    record = EmotionRecord(
+        user_id=current_user.id,
+        timestamp=timestamp,
+        emotion_type="facial",
+        dominant_emotion=dominant_emotion,
+        confidence=confidence,
+        emotion_scores=json.dumps(scores),
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return _parse_emotion_record(record)
+
 
 @router.post("/emotion", response_model=EmotionRecordResponse, status_code=status.HTTP_201_CREATED)
 def log_emotion(

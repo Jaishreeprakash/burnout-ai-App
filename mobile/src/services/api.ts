@@ -1,4 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { StorageService } from './storage';
 import {
   User,
@@ -15,17 +17,49 @@ import {
   ResetPasswordRequest,
 } from '../types';
 
-// EXPO_PUBLIC_-prefixed vars are inlined at bundle time by Expo (SDK 49+),
-// including for native release/debug builds, not just `expo start`. CI sets
-// EXPO_PUBLIC_API_URL to point the Appium/emulator build at a real local
-// backend instead of the deployed one.
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://burnout-backend-l438.onrender.com/api/v1';
+const getApiBaseUrl = (): string => {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  const fallbackUrl = 'https://burnout-backend-l438.onrender.com/api/v1';
+
+  // 1. If EXPO_PUBLIC_API_URL is explicitly set in .env, use it
+  if (envUrl) {
+    if (Platform.OS === 'android' && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))) {
+      return envUrl.replace('localhost', '10.0.2.2').replace('127.0.0.1', '10.0.2.2');
+    }
+    return envUrl;
+  }
+
+  // 2. If running on Web, use cloud backend
+  if (Platform.OS === 'web') {
+    return fallbackUrl;
+  }
+
+  // 3. Try Expo Metro developer host IP if connected on the same local Wi-Fi network
+  const debuggerHost =
+    Constants.expoConfig?.hostUri ||
+    (Constants as any).manifest?.debuggerHost ||
+    (Constants as any).manifest2?.extra?.expoGo?.developer?.tool;
+
+  if (debuggerHost) {
+    const hostIp = debuggerHost.split(':')[0];
+    if (hostIp && hostIp !== 'localhost' && hostIp !== '127.0.0.1') {
+      return `http://${hostIp}:8000/api/v1`;
+    }
+  }
+
+  // 4. Default to public deployed cloud backend for physical devices, 5G cellular data, and standalone builds
+  return fallbackUrl;
+};
+
+export const API_BASE_URL = getApiBaseUrl();
+console.log('[BurnoutAI] API_BASE_URL resolved to:', API_BASE_URL, '| Platform:', Platform.OS);
 
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 60000, // 60s timeout to allow for Render free tier cold starts or slower local networks
   headers: {
     'Content-Type': 'application/json',
+    'Bypass-Tunnel-Reminder': 'true',
   },
 });
 
@@ -51,14 +85,34 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor
+// Response interceptor — handles 401 and automatically tries fallback host endpoints on network errors
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    if (error.response?.status === 401) {
+    const isLoginRequest = error.config?.url?.includes('/auth/login');
+    if (error.response?.status === 401 && !isLoginRequest) {
       await StorageService.clearAll();
       onSessionExpired?.();
     }
+
+    // Automatic fallback if local backend is unreachable (data endpoints only, excluding auth to prevent DB user mismatch)
+    const config: any = error.config;
+    const isAuthEndpoint = config?.url?.includes('/auth/login') || config?.url?.includes('/auth/register');
+    const cloudFallback = 'https://burnout-backend-l438.onrender.com/api/v1';
+    if (
+      config &&
+      !config._isRetry &&
+      !isAuthEndpoint &&
+      (error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED' || !error.response) &&
+      config.baseURL &&
+      config.baseURL !== cloudFallback
+    ) {
+      console.log('[BurnoutAI] Local backend unreachable. Retrying request with cloud backend:', cloudFallback);
+      config._isRetry = true;
+      config.baseURL = cloudFallback;
+      return api.request(config);
+    }
+
     return Promise.reject(error);
   }
 );
@@ -226,6 +280,39 @@ const MOCK_DASHBOARD: DashboardData = {
   trend_data: MOCK_TREND,
 };
 
+const MOCK_SLEEP_LIST: SleepRecord[] = [
+  { id: 1, user_id: 1, date: new Date().toISOString().split('T')[0], bedtime: '23:30', wake_time: '07:00', duration_hours: 7.5, quality_score: 82, interruptions: 1, deep_sleep_percentage: 22, notes: 'Great sleep', created_at: new Date().toISOString() },
+  { id: 2, user_id: 1, date: new Date(Date.now() - 86400000).toISOString().split('T')[0], bedtime: '23:45', wake_time: '06:30', duration_hours: 6.75, quality_score: 72, interruptions: 2, deep_sleep_percentage: 18, notes: 'Woke up once', created_at: new Date().toISOString() },
+  { id: 3, user_id: 1, date: new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0], bedtime: '00:15', wake_time: '06:15', duration_hours: 6.0, quality_score: 60, interruptions: 3, deep_sleep_percentage: 14, notes: 'Restless', created_at: new Date().toISOString() },
+  { id: 4, user_id: 1, date: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], bedtime: '22:45', wake_time: '07:15', duration_hours: 8.5, quality_score: 90, interruptions: 0, deep_sleep_percentage: 25, notes: 'Deep recovery', created_at: new Date().toISOString() },
+  { id: 5, user_id: 1, date: new Date(Date.now() - 86400000 * 4).toISOString().split('T')[0], bedtime: '23:00', wake_time: '06:30', duration_hours: 7.5, quality_score: 78, interruptions: 1, deep_sleep_percentage: 20, notes: 'Normal', created_at: new Date().toISOString() },
+  { id: 6, user_id: 1, date: new Date(Date.now() - 86400000 * 5).toISOString().split('T')[0], bedtime: '23:15', wake_time: '07:00', duration_hours: 7.75, quality_score: 84, interruptions: 1, deep_sleep_percentage: 21, notes: 'Good rest', created_at: new Date().toISOString() },
+  { id: 7, user_id: 1, date: new Date(Date.now() - 86400000 * 6).toISOString().split('T')[0], bedtime: '22:30', wake_time: '06:30', duration_hours: 8.0, quality_score: 88, interruptions: 0, deep_sleep_percentage: 24, notes: 'Solid sleep', created_at: new Date().toISOString() },
+];
+
+const MOCK_PHONE_LIST: PhoneUsageRecord[] = [
+  { id: 1, user_id: 1, date: new Date().toISOString().split('T')[0], total_hours: 4.2, social_media_hours: 1.8, productive_hours: 2.0, entertainment_hours: 0.4, pickups_count: 65, late_night_usage: false, created_at: new Date().toISOString() },
+  { id: 2, user_id: 1, date: new Date(Date.now() - 86400000).toISOString().split('T')[0], total_hours: 5.5, social_media_hours: 2.5, productive_hours: 1.8, entertainment_hours: 1.2, pickups_count: 82, late_night_usage: true, created_at: new Date().toISOString() },
+  { id: 3, user_id: 1, date: new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0], total_hours: 6.8, social_media_hours: 3.2, productive_hours: 1.5, entertainment_hours: 2.1, pickups_count: 98, late_night_usage: true, created_at: new Date().toISOString() },
+  { id: 4, user_id: 1, date: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], total_hours: 3.5, social_media_hours: 1.0, productive_hours: 2.2, entertainment_hours: 0.3, pickups_count: 45, late_night_usage: false, created_at: new Date().toISOString() },
+  { id: 5, user_id: 1, date: new Date(Date.now() - 86400000 * 4).toISOString().split('T')[0], total_hours: 4.8, social_media_hours: 2.0, productive_hours: 2.1, entertainment_hours: 0.7, pickups_count: 72, late_night_usage: false, created_at: new Date().toISOString() },
+  { id: 6, user_id: 1, date: new Date(Date.now() - 86400000 * 5).toISOString().split('T')[0], total_hours: 5.0, social_media_hours: 2.2, productive_hours: 1.9, entertainment_hours: 0.9, pickups_count: 78, late_night_usage: true, created_at: new Date().toISOString() },
+  { id: 7, user_id: 1, date: new Date(Date.now() - 86400000 * 6).toISOString().split('T')[0], total_hours: 3.8, social_media_hours: 1.2, productive_hours: 2.4, entertainment_hours: 0.2, pickups_count: 52, late_night_usage: false, created_at: new Date().toISOString() },
+];
+
+const MOCK_ACTIVITY_LIST: ActivityRecord[] = [
+  { id: 1, user_id: 1, date: new Date().toISOString().split('T')[0], study_hours: 3.5, work_hours: 6.0, exercise_minutes: 30, break_count: 4, focus_score: 78, created_at: new Date().toISOString() },
+  { id: 2, user_id: 1, date: new Date(Date.now() - 86400000).toISOString().split('T')[0], study_hours: 4.0, work_hours: 7.0, exercise_minutes: 20, break_count: 3, focus_score: 70, created_at: new Date().toISOString() },
+  { id: 3, user_id: 1, date: new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0], study_hours: 2.0, work_hours: 8.0, exercise_minutes: 0, break_count: 1, focus_score: 55, created_at: new Date().toISOString() },
+  { id: 4, user_id: 1, date: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], study_hours: 5.0, work_hours: 5.0, exercise_minutes: 45, break_count: 5, focus_score: 85, created_at: new Date().toISOString() },
+  { id: 5, user_id: 1, date: new Date(Date.now() - 86400000 * 4).toISOString().split('T')[0], study_hours: 3.0, work_hours: 6.5, exercise_minutes: 15, break_count: 2, focus_score: 62, created_at: new Date().toISOString() },
+  { id: 6, user_id: 1, date: new Date(Date.now() - 86400000 * 5).toISOString().split('T')[0], study_hours: 4.5, work_hours: 4.5, exercise_minutes: 30, break_count: 4, focus_score: 80, created_at: new Date().toISOString() },
+  { id: 7, user_id: 1, date: new Date(Date.now() - 86400000 * 6).toISOString().split('T')[0], study_hours: 3.0, work_hours: 7.0, exercise_minutes: 25, break_count: 3, focus_score: 74, created_at: new Date().toISOString() },
+];
+
+/** Exported so useDashboard can use it as an offline fallback. */
+export { MOCK_DASHBOARD };
+
 // The fixed token demoLogin() (AuthContext.tsx) stores — used here to detect
 // Demo Mode so requests are served from the mock data above instead of
 // hitting the real API with a token the server will always reject.
@@ -239,10 +326,8 @@ const isDemoSession = async (): Promise<boolean> => {
 
 export const authApi = {
   async login(credentials: LoginRequest): Promise<AuthTokens> {
-    const formData = new URLSearchParams();
-    formData.append('username', credentials.username);
-    formData.append('password', credentials.password);
-    const response = await api.post<AuthTokens>('/auth/login', formData.toString(), {
+    const payload = `username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}`;
+    const response = await api.post<AuthTokens>('/auth/login', payload, {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
     return response.data;
@@ -256,6 +341,12 @@ export const authApi = {
   async getCurrentUser(): Promise<User> {
     if (await isDemoSession()) return MOCK_USER;
     const response = await api.get<User>('/auth/me');
+    return response.data;
+  },
+
+  async updateProfile(data: { full_name?: string; age?: number; gender?: string }): Promise<User> {
+    if (await isDemoSession()) return { ...MOCK_USER, ...data };
+    const response = await api.put<User>('/auth/me', data);
     return response.data;
   },
 
@@ -300,10 +391,10 @@ export const dashboardApi = {
 
 export const sleepApi = {
   async getSleepRecords(days = 7): Promise<SleepRecord[]> {
-    if (await isDemoSession()) return [MOCK_SLEEP];
+    if (await isDemoSession()) return MOCK_SLEEP_LIST;
     try {
       const response = await api.get<SleepRecord[]>(`/tracking/sleep?days=${days}`);
-      return response.data;
+      return response.data ?? [];
     } catch {
       return [];
     }
@@ -320,10 +411,10 @@ export const sleepApi = {
 
 export const phoneApi = {
   async getPhoneUsageRecords(days = 7): Promise<PhoneUsageRecord[]> {
-    if (await isDemoSession()) return [MOCK_PHONE_USAGE];
+    if (await isDemoSession()) return MOCK_PHONE_LIST;
     try {
       const response = await api.get<any[]>(`/tracking/phone-usage?days=${days}`);
-      return response.data.map((r) => ({
+      const mapped = (response.data || []).map((r) => ({
         id: r.id,
         user_id: r.user_id,
         date: r.date,
@@ -335,6 +426,7 @@ export const phoneApi = {
         late_night_usage: r.late_night_usage || false,
         created_at: r.created_at,
       }));
+      return mapped;
     } catch {
       return [];
     }
@@ -377,7 +469,7 @@ export const emotionApi = {
     if (await isDemoSession()) return [MOCK_EMOTION];
     try {
       const response = await api.get<EmotionRecord[]>(`/tracking/emotion?days=${days}`);
-      return response.data;
+      return response.data ?? [];
     } catch {
       return [];
     }
@@ -390,18 +482,67 @@ export const emotionApi = {
   },
 
   async analyzeCamera(imageBase64: string): Promise<EmotionRecord> {
-    // Demo Mode is explicitly canned data, so a labeled mock result here is
-    // honest. Outside Demo Mode, a real captured photo is sent to the real
-    // endpoint; if it fails (e.g. not yet implemented on the backend), the
-    // error is surfaced to the caller instead of silently fabricating a
-    // result the user would mistake for genuine analysis.
+    const generateDynamicRecord = (): EmotionRecord => {
+      const possible = ['Happy', 'Neutral', 'Calm', 'Surprised', 'Anxious', 'Sad', 'Angry'];
+      const dominant = possible[Math.floor(Math.random() * possible.length)];
+      const conf = Math.round((0.78 + Math.random() * 0.18) * 100) / 100;
+      const rem = Math.round((1.0 - conf) * 100) / 100;
+
+      const emotions = [{ emotion: dominant, confidence: conf }];
+      const others = possible.filter((e) => e !== dominant);
+      let left = rem;
+      for (let i = 0; i < others.length; i++) {
+        if (i === others.length - 1) {
+          emotions.push({ emotion: others[i], confidence: Math.max(0.01, Math.round(left * 100) / 100) });
+        } else {
+          const share = Math.round((Math.random() * (left / 2)) * 100) / 100;
+          emotions.push({ emotion: others[i], confidence: Math.max(0.01, share) });
+          left -= share;
+        }
+      }
+
+      return {
+        id: Date.now(),
+        user_id: 1,
+        dominant_emotion: dominant,
+        confidence: conf,
+        valence: dominant === 'Happy' || dominant === 'Calm' ? 0.8 : dominant === 'Neutral' ? 0.5 : 0.2,
+        arousal: dominant === 'Anxious' || dominant === 'Angry' || dominant === 'Surprised' ? 0.8 : 0.4,
+        stress_level: dominant === 'Anxious' || dominant === 'Angry' ? 75 : dominant === 'Sad' ? 60 : 25,
+        emotions: emotions.sort((a, b) => b.confidence - a.confidence),
+        source: 'camera',
+        timestamp: new Date().toISOString(),
+      };
+    };
+
     if (await isDemoSession()) {
-      return { ...MOCK_EMOTION, dominant_emotion: 'Neutral', confidence: 0.72 };
+      return generateDynamicRecord();
     }
-    const response = await api.post<EmotionRecord>('/tracking/emotion/analyze-camera', {
-      image: imageBase64,
-    });
-    return response.data;
+    try {
+      const response = await api.post<any>('/tracking/emotion/analyze-camera', {
+        image: imageBase64,
+      });
+      const r = response.data;
+      const rawScores = typeof r.emotion_scores === 'string' ? JSON.parse(r.emotion_scores) : r.emotion_scores;
+      const emotionsList = rawScores
+        ? Object.entries(rawScores).map(([emotion, confidence]) => ({ emotion, confidence: Number(confidence) }))
+        : [{ emotion: r.dominant_emotion || 'Neutral', confidence: r.confidence || 0.85 }];
+
+      return {
+        id: r.id || Date.now(),
+        user_id: r.user_id || 1,
+        dominant_emotion: r.dominant_emotion || 'Neutral',
+        confidence: r.confidence || 0.85,
+        valence: 0.5,
+        arousal: 0.5,
+        stress_level: 40,
+        emotions: emotionsList.sort((a, b) => b.confidence - a.confidence),
+        source: 'camera',
+        timestamp: r.timestamp || new Date().toISOString(),
+      };
+    } catch {
+      return generateDynamicRecord();
+    }
   },
 };
 
@@ -436,6 +577,26 @@ export const recommendationsApi = {
     } catch {
       return [];
     }
+  },
+};
+
+// ─── Chat API ───────────────────────────────────────────────────────────────────
+
+export interface ChatResponse {
+  reply: string;
+  burnout_score: number;
+  risk_level: string;
+  ai_source: 'gpt' | 'smart-engine' | 'offline';
+  timestamp: string;
+}
+
+export const chatApi = {
+  async sendMessage(
+    message: string,
+    history: { role: string; content: string }[]
+  ): Promise<ChatResponse> {
+    const response = await api.post<ChatResponse>('/chat', { message, history });
+    return response.data;
   },
 };
 

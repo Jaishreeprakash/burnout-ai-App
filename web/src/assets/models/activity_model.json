@@ -1,0 +1,32 @@
+{
+  "features": [
+    "work_hours",
+    "study_hours",
+    "exercise_min",
+    "break_count",
+    "break_to_work_ratio",
+    "sleep_last_night"
+  ],
+  "focus_model": {
+    "coefficients": [
+      -4.597,
+      -4.384,
+      0.1562,
+      1.9733,
+      29.7572,
+      4.9598
+    ],
+    "intercept": 58.6946
+  },
+  "exhaustion_model": {
+    "coefficients": [
+      0.0644,
+      0.0585,
+      -0.001,
+      -0.0142,
+      -0.4902,
+      -0.037
+    ],
+    "intercept": 0.4923
+  }
+}

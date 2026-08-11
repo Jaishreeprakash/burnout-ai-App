@@ -5,6 +5,7 @@ import { Card, CardHeader } from '../components/UI/Card';
 import { Badge } from '../components/UI/Badge';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { authAPI } from '../services/api';
 import { useDashboard } from '../hooks/useDashboard';
 
 interface ProfileFormData {
@@ -46,11 +47,15 @@ export const Profile: React.FC = () => {
   const onSubmit = async (data: ProfileFormData) => {
     setIsSaving(true);
     try {
-      await new Promise((r) => setTimeout(r, 800));
-      if (user) {
-        updateUser({ ...user, ...data });
-      }
+      const updated = await authAPI.updateMe({
+        full_name: data.full_name,
+        age: Number(data.age) || undefined,
+        gender: data.gender || undefined,
+      });
+      updateUser(updated);
       setIsEditing(false);
+    } catch (err) {
+      console.error('Failed to update profile:', err);
     } finally {
       setIsSaving(false);
     }
@@ -99,8 +104,13 @@ export const Profile: React.FC = () => {
           </div>
 
           <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 text-slate-400 hover:text-red-400 bg-slate-700/50 hover:bg-red-500/10 border border-slate-600 hover:border-red-500/30 px-3 py-2 rounded-lg text-sm transition-all"
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              logout();
+            }}
+            className="flex items-center gap-2 text-slate-400 hover:text-red-400 bg-slate-700/50 hover:bg-red-500/10 border border-slate-600 hover:border-red-500/30 px-3 py-2 rounded-lg text-sm transition-all cursor-pointer"
           >
             <LogOut size={15} />
             Sign Out

@@ -1,8 +1,9 @@
 import React from 'react';
 import {
   Moon, Smartphone, Activity, RefreshCw,
-  Brain, Zap, Clock, TrendingUp, AlertTriangle,
+  Brain, Zap, Clock, TrendingUp, AlertTriangle, Cpu
 } from 'lucide-react';
+import { predictMasterBurnout } from '../services/mlEngine';
 import { useDashboard } from '../hooks/useDashboard';
 import { BurnoutGauge } from '../components/Dashboard/BurnoutGauge';
 import { WellnessCard, WellnessCardData } from '../components/Dashboard/WellnessCard';
@@ -100,6 +101,61 @@ export const Dashboard: React.FC = () => {
           <span className="hidden sm:inline">Refresh</span>
         </button>
       </div>
+
+      {/* ── ML Master Burnout Forecaster ── */}
+      {(() => {
+        const sq = latestSleep?.quality_score ?? 70;
+        const sd = latestSleep?.duration_hours ?? 7.5;
+        const st = latestPhone?.screen_time_hours ?? 4.0;
+        const pu = latestPhone?.pickups_count ?? 50;
+        const wh = latestActivity?.work_hours ?? 6.0;
+        const ex = latestActivity?.exercise_minutes ?? 30;
+
+        const masterPred = predictMasterBurnout(
+          sq, sd, st, pu, wh, ex, 0.25, 70
+        );
+
+        return (
+          <Card className="bg-gradient-to-r from-indigo-950 via-slate-900 to-purple-950 border-indigo-500/40">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-3 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                  <Cpu size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-white text-base">ML Master Burnout Forecaster</h3>
+                    <Badge variant="indigo">Integrated ML Pipeline</Badge>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1">
+                    7-Day Rolling Predictive Model for Early Burnout Prevention
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-4 border-t md:border-t-0 md:border-l border-slate-700/60 pt-3 md:pt-0 md:pl-6">
+                <div>
+                  <p className="text-xs text-slate-400">Current ML Score</p>
+                  <p className="text-xl font-bold text-indigo-400">{masterPred.masterBurnoutScore}/100</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">7-Day Forecast</p>
+                  <p className="text-xl font-bold text-purple-400">{masterPred.future7DayScore}/100</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Risk Status</p>
+                  <Badge variant={masterPred.riskLevel === 'critical' || masterPred.riskLevel === 'high' ? 'danger' : masterPred.riskLevel === 'moderate' ? 'warning' : 'success'}>
+                    {masterPred.riskLevel.toUpperCase()}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Primary Driver</p>
+                  <p className="text-xs font-bold text-amber-300 mt-1">{masterPred.primaryDriver.replace('_', ' ')}</p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* ── Alert banner for high/critical risk ── */}
       {burnoutAnalysis && ['high', 'critical'].includes(burnoutAnalysis.risk_level.toLowerCase()) && (

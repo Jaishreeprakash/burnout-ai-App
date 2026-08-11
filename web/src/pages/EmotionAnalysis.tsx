@@ -5,6 +5,8 @@ import { Card, CardHeader } from '../components/UI/Card';
 import { Badge } from '../components/UI/Badge';
 import { emotionAPI } from '../services/api';
 import { useEmotionPage } from '../hooks/useDashboard';
+import { predictEmotionStress } from '../services/mlEngine';
+import { Cpu } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell,
 } from 'recharts';
@@ -91,7 +93,60 @@ export const EmotionAnalysis: React.FC = () => {
       </div>
 
       {activeTab === 'current' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          {/* ML Model Emotion & Stress Intervention Banner */}
+          {(() => {
+            const domEmotion = dominantMeta.label;
+            const hourNow = new Date().getHours();
+            const pred = predictEmotionStress(
+              domEmotion,
+              5,
+              domEmotion === 'Happy' || domEmotion === 'Calm' ? 0.8 : domEmotion === 'Neutral' ? 0.0 : -0.6,
+              0.5,
+              hourNow
+            );
+
+            return (
+              <Card className="bg-gradient-to-r from-pink-900/40 via-purple-900/30 to-slate-900 border-pink-500/30">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 rounded-xl bg-pink-500/20 text-pink-400 border border-pink-500/30">
+                      <Cpu size={22} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-white">ML Emotional Stability & Stress Intervention Model</h3>
+                        <Badge variant="indigo">Valence-Arousal ML</Badge>
+                      </div>
+                      <p className="text-xs text-slate-300 mt-1">
+                        Evaluates real-time emotional valence & stress indicators for instant intervention
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 border-t md:border-t-0 md:border-l border-slate-700/60 pt-3 md:pt-0 md:pl-6">
+                    <div>
+                      <p className="text-xs text-slate-400">Stability Index</p>
+                      <p className="text-xl font-bold text-pink-400">{pred.stabilityIndex}/100</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Stress Category</p>
+                      <Badge variant={pred.stressCategory === 'Burnout_Distress' ? 'danger' : pred.stressCategory === 'High_Anxiety' ? 'warning' : 'success'}>
+                        {pred.stressCategory.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400">Intervention</p>
+                      <Badge variant={pred.interventionUrgency === 'Immediate_Breathing_Required' ? 'danger' : 'neutral'}>
+                        {pred.interventionUrgency === 'Immediate_Breathing_Required' ? 'Breathing Req.' : 'Normal'}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            );
+          })()}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Camera / Detection UI */}
           <Card>
             <CardHeader title="Emotion Detection" subtitle="Facial analysis" icon={<Camera size={16} />} />
@@ -183,7 +238,8 @@ export const EmotionAnalysis: React.FC = () => {
             )}
           </Card>
         </div>
-      )}
+      </div>
+    )}
 
       {activeTab === 'history' && (
         <Card>

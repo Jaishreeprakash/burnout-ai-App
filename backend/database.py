@@ -61,20 +61,7 @@ Base = declarative_base()
 
 
 def get_db():
-    # Retry session acquisition a few times with backoff so a transient DB
-    # connectivity blip (dropped connection, brief DNS failure) doesn't
-    # immediately fail every in-flight request with a 500.
-    attempts = 3
-    for attempt in range(attempts):
-        db = SessionLocal()
-        try:
-            db.execute(text("SELECT 1"))
-            break
-        except OperationalError:
-            db.close()
-            if attempt == attempts - 1:
-                raise
-            time.sleep(0.5 * (attempt + 1))
+    db = SessionLocal()
     try:
         yield db
     finally:

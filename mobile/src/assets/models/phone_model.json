@@ -1,0 +1,40 @@
+{
+  "features": [
+    "total_screen",
+    "social_media",
+    "entertainment",
+    "productive",
+    "pickups",
+    "late_night",
+    "avg_session_min"
+  ],
+  "score_model": {
+    "coefficients": [
+      5.0071,
+      5.5057,
+      2.5177,
+      0.5813,
+      0.1305,
+      14.0604,
+      -0.0262
+    ],
+    "intercept": -23.5036
+  },
+  "cap_model": {
+    "coefficients": [
+      -0.2294,
+      -0.2426,
+      -0.1278,
+      -0.0372,
+      -0.006,
+      -0.6452,
+      0.0015
+    ],
+    "intercept": 6.8706
+  },
+  "usage_classes": [
+    "Healthy",
+    "Distracted",
+    "Compulsive_Addiction"
+  ]
+}

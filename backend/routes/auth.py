@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from database import get_db
 from models.user import User
-from schemas.user import Token, UserCreate, UserResponse, ResetPasswordRequest
+from schemas.user import Token, UserCreate, UserResponse, UserUpdate, ResetPasswordRequest
 from utils.auth_utils import (
     create_access_token,
     get_current_user,
@@ -16,11 +16,17 @@ from config import settings
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user account."""
+    email_clean = user_data.email.strip().lower()
+    username_clean = user_data.username.strip().lower()
+
     # Check if email already exists
-    existing_email = db.query(User).filter(User.email == user_data.email).first()
+    existing_email = db.query(User).filter(func.lower(User.email) == email_clean).first()
     if existing_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -28,7 +34,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         )
 
     # Check if username already exists
-    existing_username = db.query(User).filter(User.username == user_data.username).first()
+    existing_username = db.query(User).filter(func.lower(User.username) == username_clean).first()
     if existing_username:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -37,8 +43,8 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
     hashed_pw = get_password_hash(user_data.password)
     new_user = User(
-        email=user_data.email,
-        username=user_data.username,
+        email=email_clean,
+        username=username_clean,
         hashed_password=hashed_pw,
         full_name=user_data.full_name,
         age=user_data.age,
@@ -65,13 +71,6 @@ def login(
     db: Session = Depends(get_db),
 ):
     """Login with email (as username field) and password, returns JWT token."""
-    # OAuth2PasswordRequestForm delivers raw form data with no Pydantic model
-    # behind it, so unlike every other endpoint these two fields never pass
-    # through schema validation. A NUL byte here crashes the DB query
-    # (psycopg2 rejects NUL in any bound parameter) and a password over 72
-    # bytes crashes bcrypt verification — both would otherwise be raw 500s.
-    # Treat malformed input the same as wrong credentials rather than leak
-    # which case it was.
     if "\x00" in form_data.username or "\x00" in form_data.password or len(form_data.password.encode("utf-8")) > 72:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -79,11 +78,12 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # OAuth2PasswordRequestForm uses `username` field — we treat it as email
-    user = db.query(User).filter(User.email == form_data.username).first()
+    input_identifier = form_data.username.strip().lower()
+
+    # Match by email or username (case-insensitive)
+    user = db.query(User).filter(func.lower(User.email) == input_identifier).first()
     if not user:
-        # Also try matching by username
-        user = db.query(User).filter(User.username == form_data.username).first()
+        user = db.query(User).filter(func.lower(User.username) == input_identifier).first()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -112,6 +112,24 @@ def login(
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     """Get the currently authenticated user's profile."""
+    return current_user
+
+
+@router.put("/me", response_model=UserResponse)
+def update_me(
+    data: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update the currently authenticated user's profile."""
+    if data.full_name is not None and data.full_name.strip():
+        current_user.full_name = data.full_name.strip()
+    if data.age is not None:
+        current_user.age = data.age
+    if data.gender is not None:
+        current_user.gender = data.gender.strip()
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 

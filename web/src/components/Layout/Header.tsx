@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Bell, Menu, ChevronDown } from 'lucide-react';
+import { Bell, Menu, ChevronDown, User as UserIcon, LogOut } from 'lucide-react';
 import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { RiskBadge } from '../UI/Badge';
 import { RiskLevel } from '../../types';
@@ -18,8 +19,21 @@ export const Header: React.FC<HeaderProps> = ({
   riskLevel,
   onMenuClick,
 }) => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+
+  const handleLogout = () => {
+    setShowUserMenu(false);
+    logout();
+    navigate('/login');
+  };
+
+  const handleProfileClick = () => {
+    setShowUserMenu(false);
+    navigate('/profile');
+  };
 
   const getInitials = (name: string) => {
     return name
@@ -121,15 +135,49 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      {/* User avatar */}
+      {/* User avatar dropdown */}
       {user && (
-        <div className="flex items-center gap-2 cursor-pointer group">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-            <span className="text-xs font-bold text-white">
-              {getInitials(user.full_name || user.username)}
-            </span>
-          </div>
-          <ChevronDown size={14} className="text-slate-400 hidden sm:block group-hover:text-slate-300 transition-colors" />
+        <div className="relative">
+          <button
+            onClick={() => setShowUserMenu(!showUserMenu)}
+            aria-label="User Menu"
+            className="flex items-center gap-2 p-1 rounded-lg hover:bg-slate-800 transition-colors"
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow">
+              <span className="text-xs font-bold text-white">
+                {getInitials(user.full_name || user.username)}
+              </span>
+            </div>
+            <ChevronDown size={14} className="text-slate-400 hidden sm:block" />
+          </button>
+
+          {showUserMenu && (
+            <div className="absolute right-0 top-full mt-2 w-48 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-50 py-1">
+              <div className="px-4 py-2 border-b border-slate-700">
+                <p className="text-sm font-semibold text-white truncate">{user.full_name || user.username}</p>
+                <p className="text-xs text-slate-400 truncate">{user.email}</p>
+              </div>
+              <button
+                onClick={handleProfileClick}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-slate-300 hover:text-white hover:bg-slate-700/50 text-left transition-colors"
+              >
+                <UserIcon size={14} />
+                My Profile
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleLogout();
+                }}
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 text-left transition-colors cursor-pointer"
+              >
+                <LogOut size={14} />
+                Sign Out
+              </button>
+            </div>
+          )}
         </div>
       )}
     </header>
