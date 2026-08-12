@@ -54,10 +54,12 @@ def wait_for_web(url, timeout=60):
     return False
 
 
-def spawn_web_dev_server(port=3000):
+def spawn_web_dev_server(port=3000, backend_url="http://127.0.0.1:8000"):
+    env = os.environ.copy()
+    env["VITE_API_URL"] = f"{backend_url}/api/v1"
     proc = subprocess.Popen(
         ["npm", "run", "dev", "--", "--port", str(port), "--host", "127.0.0.1", "--strictPort"],
-        cwd=WEB_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=(os.name == "nt"),
+        cwd=WEB_DIR, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=(os.name == "nt"),
     )
     return proc
 
@@ -682,7 +684,7 @@ def run(web_url, backend_url, output_dir, no_spawn_web, no_spawn_backend):
     if not no_spawn_web and not wait_for_web(web_url, timeout=1.5):
         print(f"No web dev server detected at {web_url} — starting `npm run dev`...")
         port = int(web_url.rsplit(":", 1)[-1])
-        web_proc = spawn_web_dev_server(port)
+        web_proc = spawn_web_dev_server(port, backend_url=backend_url)
         web_started = True
         if not wait_for_web(web_url, timeout=60):
             print("Web dev server failed to start within 60s.")

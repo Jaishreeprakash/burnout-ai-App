@@ -17,11 +17,13 @@ import {
   Recommendation,
 } from '../types';
 
-// Prefer an explicit env override when provided. Otherwise try the local backend
-// during development, but fall back to the public deployed API when localhost is
-// unavailable or the app is running in a browser context that can't reach the
-// local FastAPI server directly.
-const DEFAULT_API_BASE_URL = 'https://burnout-backend-l438.onrender.com/api/v1';
+const isLocalhost = typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+const DEFAULT_API_BASE_URL = isLocalhost
+  ? 'http://127.0.0.1:8000/api/v1'
+  : 'https://burnout-backend-l438.onrender.com/api/v1';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_BASE_URL;
 
 const apiClient: AxiosInstance = axios.create({
