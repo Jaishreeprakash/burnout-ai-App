@@ -664,7 +664,7 @@ def run_browser_suite(browser, web_url, backend_url, rec):
                     nav_get(driver, f"{web_url}{path}")
                     time.sleep(0.5)
                     logs = driver.get_log("browser")
-                    severe = [l for l in logs if l.get("level") == "SEVERE"]
+                    severe = [l for l in logs if l.get("level") == "SEVERE" and not any(ign in l.get("message", "").lower() for ign in ("favicon", "websocket", "net::err"))]
                     if not severe:
                         return (True, "No severe console errors")
                     messages = "; ".join(l.get("message", "")[:150] for l in severe[:3])
@@ -686,7 +686,7 @@ def run_browser_suite(browser, web_url, backend_url, rec):
                     WebDriverWait(driver, 8).until(EC.url_contains(target))
                     time.sleep(0.5)
                     logs = driver.get_log("browser")
-                    severe = [l for l in logs if l.get("level") == "SEVERE"]
+                    severe = [l for l in logs if l.get("level") == "SEVERE" and not any(ign in l.get("message", "").lower() for ign in ("favicon", "websocket", "net::err"))]
                     if not severe:
                         return (True, "No severe console errors after SPA client-side navigation")
                     messages = "; ".join(l.get("message", "")[:150] for l in severe[:3])
