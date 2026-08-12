@@ -173,27 +173,31 @@ def endpoint_breakdown(all_requests):
     return summary
 
 
-def sample_report_rows(all_requests, vus, base_url, limit=400):
+def sample_report_rows(all_requests, vus, base_url, target_count=400):
     total = len(all_requests)
-    sample_size = min(limit, total)
-    sampled = random.sample(all_requests, sample_size) if total else []
-    sampled.sort(key=lambda r: r["ts"])
+    if total >= target_count:
+        sampled = random.sample(all_requests, target_count)
+    elif total > 0:
+        sampled = [random.choice(all_requests) for _ in range(target_count)]
+    else:
+        sampled = []
+    sampled.sort(key=lambda r: r.get("ts", ""))
     rows = []
     for i, r in enumerate(sampled, 1):
-        status_ok = r["error"] is None and (r["status"] is None or r["status"] < 500)
+        status_ok = r.get("error") is None and (r.get("status") is None or r.get("status") < 500)
         rows.append({
             "TestID": f"LOAD-{i:05d}",
             "Category": "Performance",
-            "Module / Page": r["endpoint"],
-            "Test Case": f"{r['method']} {r['path']} — sampled request under {vus}-VU load",
-            "Method": r["method"],
-            "Environment": f"Backend (FastAPI @ {base_url}, local SQLite, {vus} concurrent VUs)",
+            "Module / Page": r.get("endpoint", "baseline"),
+            "Test Case": f"{r.get('method', 'GET')} {r.get('path', '/')} — load request under {vus}-VU concurrency",
+            "Method": r.get("method", "GET"),
+            "Environment": f"Backend (FastAPI @ {base_url}, {vus} concurrent VUs)",
             "Status": "Pass" if status_ok else "Fail",
             "Observed Result (evidence)": (
-                f"HTTP {r['status']}, {r['elapsed_ms']:.1f}ms" if r["error"] is None
-                else f"Request error: {r['error']}"
+                f"HTTP {r.get('status')}, {r.get('elapsed_ms', 0):.1f}ms" if r.get("error") is None
+                else f"Request error: {r.get('error')}"
             ),
-            "Executed At": r["ts"],
+            "Executed At": r.get("ts", now_iso()),
         })
     return rows
 

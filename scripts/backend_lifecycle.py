@@ -81,7 +81,10 @@ def ensure_server(base_url, no_spawn, db_filename="backend_ci_test.db", workers=
         print(f"No backend detected at {base_url} — starting uvicorn locally (SQLite, {ai_desc}, {workers} worker(s))...")
         proc = spawn_server(base_url, db_filename, workers=workers, openai_api_key=openai_api_key)
         if not wait_for_health(base_url, timeout=45):
-            proc.terminate()
+            if proc.poll() is not None:
+                print(f"Backend process exited prematurely with code {proc.returncode}.")
+            else:
+                proc.terminate()
             print("Backend failed to start within 45s.")
             sys.exit(1)
         print("Backend is up.")

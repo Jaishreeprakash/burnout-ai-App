@@ -173,9 +173,38 @@ jobs:
           name: web-e2e-results
           path: reports/web_e2e_results.*
 
+  mobile-app-tests:
+    name: "Run Mobile App E2E Tests"
+    needs: [verify-deployment]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl
+
+      - name: Run Mobile App Static & Source Analysis Suite
+        run: |
+          python scripts/run_mobile_suite.py --skip-live
+
+      - name: Upload Mobile App E2E Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-e2e-results
+          path: reports/mobile_e2e_results.*
+
   consolidate-and-verify-reports:
     name: "Consolidate & Verify Reports"
-    needs: [verify-deployment, backend-api-tests, frontend-build, api-load-tests, selenium-e2e-tests]
+    needs: [verify-deployment, backend-api-tests, frontend-build, api-load-tests, selenium-e2e-tests, mobile-app-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:

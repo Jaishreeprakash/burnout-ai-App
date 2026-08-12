@@ -34,27 +34,30 @@ def main():
     md.append("| Component | Test Suite / Report | Total Tests | Passed / Fixed | Failed / Open | Pass/Fix Rate | Duration |")
     md.append("| :--- | :--- | :--- | :--- | :--- | :--- | :--- |")
 
-    def summary_row(name, suite_label, data, default_total, default_passed, duration_str, rate_fmt="{:.1f}%"):
+    def summary_row(name, suite_label, data, default_duration="N/A"):
         if data is None:
-            tot = default_total
-            pas = default_passed
+            tot = 0
+            pas = 0
             fail = 0
-            rate = "100%" if rate_fmt == "100%" else "100.0%"
+            rate = "N/A"
+            dur = "Not Run"
         else:
-            tot = data.get("total", default_total)
-            pas = data.get("passed", default_passed)
-            fail = data.get("failed", 0)
-            p_rate = data.get("pass_rate", 100.0)
-            rate = f"{p_rate:.0f}%" if rate_fmt == "100%" else f"{p_rate:.1f}%"
+            tot = data.get("total", len(data.get("results", [])))
+            pas = data.get("passed", sum(1 for r in data.get("results", []) if r.get("Status") == "Pass"))
+            fail = data.get("failed", tot - pas)
+            p_rate = data.get("pass_rate", (pas / tot * 100) if tot else 0.0)
+            rate = f"{p_rate:.1f}%"
+            dur_val = data.get("duration_seconds") or data.get("actual_duration_seconds")
+            dur = f"{dur_val:.1f}s" if dur_val is not None else default_duration
 
         md.append(
-            f"| {name} | {suite_label} | {tot:,} | ✅ {pas:,} | ❌ {fail} | {rate} | {duration_str} |"
+            f"| {name} | {suite_label} | {tot:,} | ✅ {pas:,} | ❌ {fail} | {rate} | {dur} |"
         )
 
-    summary_row("Website E2E", "HealthSense Web App – Full E2E Workflow", web, 400, 400, "200s", "100%")
-    summary_row("Mobile E2E", "HealthSense AI – Full Appium E2E Automation", mobile, 400, 400, "500.00 seconds", "100.0%")
-    summary_row("Backend Security", "HealthSense AI — Security Vulnerability Report", backend, 400, 400, "N/A", "100%")
-    summary_row("API Load Testing", "HealthSense AI API Load Testing Report", load_test, 7583, 7583, "120s", "100.0%")
+    summary_row("Website E2E", "HealthSense Web App – Full E2E Workflow", web)
+    summary_row("Mobile E2E", "HealthSense AI – Full Appium E2E Automation", mobile)
+    summary_row("Backend Security", "HealthSense AI — Security Vulnerability Report", backend)
+    summary_row("API Load Testing", "HealthSense AI API Load Testing Report", load_test)
 
     md.append("\n## 🌐 Website E2E Test Verification Details\n")
     web_tot = web.get("total", 400) if web else 400

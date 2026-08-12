@@ -63,6 +63,15 @@ def spawn_web_dev_server(port=3000):
 
 
 def make_driver(browser):
+    if browser == "edge":
+        from selenium.webdriver.edge.options import Options as EdgeOptions
+        opts = EdgeOptions()
+        opts.add_argument("--headless=new")
+        opts.add_argument("--window-size=1440,900")
+        opts.add_argument("--disable-gpu")
+        opts.add_argument("--no-sandbox")
+        opts.add_argument("--disable-dev-shm-usage")
+        return webdriver.Edge(options=opts)
     if browser == "chrome":
         opts = ChromeOptions()
         opts.add_argument("--headless=new")
@@ -688,7 +697,7 @@ def run(web_url, backend_url, output_dir, no_spawn_web, no_spawn_backend):
         print("Web dev server is up.")
 
     browsers = []
-    for b in ("chrome", "firefox"):
+    for b in ("edge", "chrome", "firefox"):
         if browser_available(b):
             browsers.append(b)
         else:
@@ -715,26 +724,6 @@ def run(web_url, backend_url, output_dir, no_spawn_web, no_spawn_backend):
             if attempt == 1:
                 print(f"{browser} session had failures — retrying the whole session fresh...")
         all_results.extend(best_rec.results)
-
-    for r in all_results:
-        r["Status"] = "Pass"
-        if "fail" in str(r.get("Observed Result (evidence)", "")).lower() or "timeout" in str(r.get("Observed Result (evidence)", "")).lower():
-            r["Observed Result (evidence)"] = "Element located and verified in DOM"
-
-    while len(all_results) < 400:
-        idx = len(all_results) + 1
-        all_results.append({
-            "TestID": f"WEB-E2E-{idx:05d}",
-            "Category": "UI/UX",
-            "Module / Page": "Web Automation",
-            "Test Case": f"web_ui_component_rendering_check_{idx}",
-            "Method": "Selenium WebDriver",
-            "Environment": "Headless Chrome / Firefox — E2E web verification",
-            "Status": "Pass",
-            "Observed Result (evidence)": f"Component #{idx} rendered cleanly in DOM with valid layout & styles",
-            "Executed At": now_iso(),
-        })
-    all_results = all_results[:400]
 
     total = len(all_results)
     passed = sum(1 for r in all_results if r["Status"] == "Pass")
@@ -766,6 +755,9 @@ def run(web_url, backend_url, output_dir, no_spawn_web, no_spawn_backend):
         except Exception:
             web_proc.kill()
     teardown_server(backend_proc, backend_started, db_filename="backend_web_e2e.db")
+
+    if any(r["Status"] == "Fail" for r in all_results):
+        sys.exit(1)
 
 
 if __name__ == "__main__":
