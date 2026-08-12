@@ -163,6 +163,8 @@ jobs:
           pip install selenium httpx jose python-jose
 
       - name: Run Selenium E2E Suite (400 test cases)
+        env:
+          VITE_API_URL: "http://127.0.0.1:8000/api/v1"
         run: |
           python scripts/run_selenium_suite.py
 

@@ -73,6 +73,7 @@ def make_driver(browser):
         opts.add_argument("--disable-gpu")
         opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--remote-allow-origins=*")
         return webdriver.Edge(options=opts)
     if browser == "chrome":
         opts = ChromeOptions()
@@ -81,8 +82,19 @@ def make_driver(browser):
         opts.add_argument("--disable-gpu")
         opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-dev-shm-usage")
+        opts.add_argument("--remote-allow-origins=*")
         opts.set_capability("goog:loggingPrefs", {"browser": "ALL"})
-        return webdriver.Chrome(options=opts)
+        try:
+            return webdriver.Chrome(options=opts)
+        except Exception:
+            opts2 = ChromeOptions()
+            opts2.add_argument("--headless")
+            opts2.add_argument("--window-size=1440,900")
+            opts2.add_argument("--disable-gpu")
+            opts2.add_argument("--no-sandbox")
+            opts2.add_argument("--disable-dev-shm-usage")
+            opts2.add_argument("--remote-allow-origins=*")
+            return webdriver.Chrome(options=opts2)
     if browser == "firefox":
         opts = FirefoxOptions()
         opts.add_argument("-headless")
@@ -92,37 +104,28 @@ def make_driver(browser):
     raise ValueError(browser)
 
 
-def browser_available(browser, timeout=30):
-    # Confirmed via a real CI run: an incompatible geckodriver/Firefox pairing
-    # on the runner image (a runner-image drift, not an app or test issue --
-    # Selenium Manager itself warned about it) can make webdriver.Firefox()
-    # hang forever during the driver handshake, raising nothing at all for a
-    # plain try/except to catch.
-    #
-    # A first attempt at this used ThreadPoolExecutor as a context manager --
-    # that still hung for the same hour, because `with ThreadPoolExecutor()`
-    # calls shutdown(wait=True) on exit, which blocks until the worker thread
-    # finishes even after future.result(timeout=...) has already raised and
-    # been handled. A plain daemon Thread has no such join-on-exit behavior:
-    # .join(timeout=...) returns control regardless of whether the thread
-    # ever finishes, and being daemonic means a permanently-hung thread can't
-    # block the interpreter from exiting later either.
+def browser_available(browser, timeout=25):
     result = {}
+    err_log = []
 
     def _probe():
         try:
             d = make_driver(browser)
             d.quit()
             result["ok"] = True
-        except Exception:
+        except Exception as exc:
+            err_log.append(str(exc))
             result["ok"] = False
 
     thread = threading.Thread(target=_probe, daemon=True)
     thread.start()
     thread.join(timeout=timeout)
     if thread.is_alive():
-        print(f"{browser} driver did not respond within {timeout}s (hung handshake?) — treating as unavailable.")
+        print(f"{browser} driver probe timed out after {timeout}s.")
         return False
+    if not result.get("ok", False):
+        msg = err_log[0] if err_log else "Unknown failure"
+        print(f"{browser} probe failed: {msg[:150]}")
     return result.get("ok", False)
 
 
