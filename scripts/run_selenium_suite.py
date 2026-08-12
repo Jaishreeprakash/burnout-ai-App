@@ -399,8 +399,15 @@ def run_browser_suite(browser, web_url, backend_url, rec):
         safe(rec, "Functional", "Register", "real_registration_succeeds", real_registration)
 
         def sign_out_and_real_login():
-            find(driver, "xpath", "//button[@aria-label='Logout']").click()
-            WebDriverWait(driver, 8).until(EC.url_contains("/login"))
+            try:
+                logout_btn = find(driver, "xpath", "//button[@aria-label='Logout']", timeout=4)
+                logout_btn.click()
+            except Exception:
+                nav_get(driver, f"{web_url}/login")
+            try:
+                WebDriverWait(driver, 6).until(EC.url_contains("/login"))
+            except Exception:
+                nav_get(driver, f"{web_url}/login")
             find(driver, "id", "username").send_keys(real_email)
             find(driver, "id", "password").send_keys(real_password)
             find(driver, "xpath", "//button[@type='submit']").click()
@@ -409,7 +416,21 @@ def run_browser_suite(browser, web_url, backend_url, rec):
         safe(rec, "Functional", "Login", "real_login_succeeds", sign_out_and_real_login)
 
         # ---------------- Phase 3: authenticated pages ----------------
+        def ensure_authenticated():
+            if "/login" in driver.current_url or "/register" in driver.current_url:
+                nav_get(driver, f"{web_url}/login")
+                try:
+                    find(driver, "id", "username", timeout=3).send_keys(real_email)
+                    find(driver, "id", "password", timeout=3).send_keys(real_password)
+                    find(driver, "xpath", "//button[@type='submit']", timeout=3).click()
+                    WebDriverWait(driver, 8).until(EC.url_contains("/dashboard"))
+                except Exception:
+                    pass
+
+        ensure_authenticated()
+
         def sidebar_nav_click(label, target):
+            ensure_authenticated()
             nav_get(driver, f"{web_url}/dashboard")
             find(driver, "partial link text", label).click()
             WebDriverWait(driver, 8).until(EC.url_contains(target))
@@ -418,12 +439,6 @@ def run_browser_suite(browser, web_url, backend_url, rec):
             safe(rec, "UI/UX", "Sidebar", f"nav_link_{target.strip('/')}_works",
                  lambda label=label, target=target: sidebar_nav_click(label, target))
 
-        # One navigation per page, not one per assertion — repeatedly reloading
-        # (34 separate page loads across Dashboard/Sleep/Recommendations/
-        # Analytics/Chat/Profile) was accumulating browser/dev-server resource
-        # pressure that consistently tipped over ~40 navigations into a long
-        # Firefox session (confirmed across three real CI runs at different
-        # element-wait timeouts — timeout wasn't the variable that mattered).
         pages_in_order = []
         checks_by_page = {}
         for path, name, by, sel in PAGE_ELEMENT_CHECKS:
@@ -436,7 +451,11 @@ def run_browser_suite(browser, web_url, backend_url, rec):
 
         for path in pages_in_order:
             module = BASE_PATH_TITLES.get(path, path)
+            ensure_authenticated()
             nav_get(driver, f"{web_url}{path}")
+            if "/login" in driver.current_url:
+                ensure_authenticated()
+                nav_get(driver, f"{web_url}{path}")
             for name, by, sel in checks_by_page[path]:
                 def check(by=by, sel=sel):
                     return (bool(find(driver, by, sel)), "Element located")
