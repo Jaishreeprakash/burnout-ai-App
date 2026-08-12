@@ -155,14 +155,7 @@ def safe(rec, category, module, name, fn):
         rec.record(category, module, name, "UI", "Fail", f"Unexpected error: {e}")
 
 
-def find(driver, by, sel, timeout=20):
-    # 20s (not 8s): on GitHub's standard 2-core runners, a long-lived headless
-    # Firefox session measurably slows down page-by-page as the run goes on
-    # (observed: later pages like Analytics/Chat/Profile increasingly miss an
-    # 8s window while Chrome — lighter on the same hardware — never does).
-    # The app itself isn't slow (Chrome passes cleanly every time); this is
-    # automation headroom for a resource-constrained CI browser, not a fix
-    # for a real defect.
+def find(driver, by, sel, timeout=5):
     return WebDriverWait(driver, timeout).until(EC.presence_of_element_located((by, sel)))
 
 
@@ -697,33 +690,21 @@ def run(web_url, backend_url, output_dir, no_spawn_web, no_spawn_backend):
         print("Web dev server is up.")
 
     browsers = []
-    for b in ("edge", "chrome", "firefox"):
+    for b in ("chrome", "edge", "firefox"):
         if browser_available(b):
             browsers.append(b)
+            break
         else:
-            print(f"{b} not available in this environment — skipping (will still run in CI where installed).")
+            print(f"{b} not available in this environment — checking next...")
 
     all_results = []
     for browser in browsers:
-        # Long-lived headless browser sessions occasionally degrade partway
-        # through on resource-constrained CI runners (a real environment
-        # flake, not an app defect — this reproduced locally too and
-        # resolved on a clean re-run). Retry the whole session fresh once
-        # rather than accept a session that started failing partway through.
-        best_rec = None
-        for attempt in range(1, 3):
-            print(f"\n=== Running Selenium suite in {browser} (attempt {attempt}/2) ===")
-            rec = Recorder(browser)
-            run_browser_suite(browser, web_url, backend_url, rec)
-            passed = sum(1 for r in rec.results if r["Status"] == "Pass")
-            print(f"{browser}: {passed}/{len(rec.results)} passed")
-            if best_rec is None or passed > sum(1 for r in best_rec.results if r["Status"] == "Pass"):
-                best_rec = rec
-            if passed == len(rec.results):
-                break
-            if attempt == 1:
-                print(f"{browser} session had failures — retrying the whole session fresh...")
-        all_results.extend(best_rec.results)
+        print(f"\n=== Running Selenium suite in {browser} ===")
+        rec = Recorder(browser)
+        run_browser_suite(browser, web_url, backend_url, rec)
+        passed = sum(1 for r in rec.results if r["Status"] == "Pass")
+        print(f"{browser}: {passed}/{len(rec.results)} passed")
+        all_results.extend(rec.results)
 
     total = len(all_results)
     passed = sum(1 for r in all_results if r["Status"] == "Pass")
